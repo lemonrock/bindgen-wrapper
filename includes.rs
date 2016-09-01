@@ -1,0 +1,11 @@
+extern crate core;
+use ::core::default::Default;
+use ::core::option::Option;
+use ::core::mem::zeroed;
+use ::core::mem::transmute;
+use ::core::clone::Clone;
+use ::std::os::raw::c_char;
+use ::std::os::raw::c_uchar;
+use ::std::os::raw::c_int;
+use ::std::os::raw::c_uint;
+use ::std::os::raw::c_void;

@@ -1,0 +1,370 @@
+#!/usr/bin/env sh
+# This file is part of bindgen-wrapper. It is subject to the license terms in the COPYRIGHT file found in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/bindgen-wrapper/master/COPYRIGHT. No part of bindgen-wrapper, including this file, may be copied, modified, propagated, or distributed except according to the terms contained in the COPYRIGHT file.
+# Copyright © 2016 The developers of bindgen-wrapper. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/bindgen-wrapper/master/COPYRIGHT.
+
+
+set -e
+set -u
+set -f
+
+
+_program_path_find()
+{
+    if [ "${_program_fattening_program_path+set}" = 'set' ]; then
+        printf '%s\n' "$_program_fattening_program_path"
+
+    elif [ "${0%/*}" = "$0" ]; then
+
+        # We've been invoked by the interpreter as, say, bash program
+        if [ -r "$0" ]; then
+            pwd -P
+        # Clutching at straws; probably run via a download, anonymous script, etc, weird execve, etc
+        else
+            printf '\n'
+        fi
+
+    else
+
+        # We've been invoked with a relative or absolute path (also when invoked via PATH in a shell)
+
+        _program_path_find_parentPath()
+        {
+            parentPath="${scriptPath%/*}"
+            if [ -z "$parentPath" ]; then
+                parentPath='/'
+            fi
+            cd "$parentPath" 1>/dev/null
+        }
+
+        # pdksh / mksh have problems with unsetting a variable that was never set...
+        if [ "${CDPATH+set}" = 'set' ]; then
+            unset CDPATH
+        fi
+
+        if command -v realpath 1>/dev/null 2>/dev/null; then
+            (
+                scriptPath="$(realpath "$0")"
+
+                _program_path_find_parentPath
+                pwd -P
+            )
+        elif command -v readlink 1>/dev/null 2>/dev/null; then
+            (
+                scriptPath="$0"
+
+                while [ -L "$scriptPath" ]
+                do
+                    _program_path_find_parentPath
+                    scriptPath="$(readlink "$scriptPath")"
+                done
+
+                _program_path_find_parentPath
+                pwd -P
+            )
+        else
+            # This approach will fail in corner cases where the script itself is a symlink in a path not parallel with the concrete script
+            (
+                scriptPath="$0"
+
+                _program_path_find_parentPath
+                pwd -P
+            )
+        fi
+
+    fi
+}
+
+bindgen_wrapper_fail()
+{
+	local failureMessage="$1"
+	
+	printf '%s\n' "$failureMessage" 1>&2
+	exit 1
+}
+
+bindgen_wrapper_cargoBinaryInstall()
+{
+	local crate="$1"
+	shift 1
+
+	if command -v "$crate" 1>/dev/null 2>/dev/null; then
+		return 0
+	fi
+		
+	bindgen_wrapper_ensureRequiredBinariesArePresent "To check for, and, if necessary, install the cargo binary '$crate'" cargo grep awk
+	
+	if cargo install --list | grep -v '^ ' | awk '{ print $1 }' | grep -q '^'"$crate"'$'; then
+		return 0
+	fi
+	
+	cargo install "$@" "$program"
+	
+	if ! command -v "$crate" 1>/dev/null 2>/dev/null; then
+		bindgen_wrapper_fail "Please make sure that binaries installed by 'cargo' (such as '$crate') are in your PATH"
+	fi
+}
+
+bindgen_wrapper_ensureRequiredBinariesArePresent()
+{
+	local reason="$1"
+	shift 1
+	
+	local binary
+	local missing=false
+	for binary in "$@"
+	do
+		if ! command -v "$binary" 1>/dev/null 2>/dev/null; then
+			printf '%s\n' "The binary '$binary' needs to be in the path" 1>&2
+			missing=true
+		fi
+	done
+	
+	if $missing; then
+		bindgen_wrapper_fail "Please make sure that the missing binaries are installed because '$reason'"
+	fi
+}
+
+bindgen_wrapper_macosxHomebrewInstall()
+{
+	local package="$1"
+	shift 1
+		
+	bindgen_wrapper_ensureRequiredBinariesArePresent "To check for and, if necessary, install the brew package '$package'" brew grep
+	
+	# Sadly, this can not check --with-shared-libs
+	if brew list | grep -q "$package"; then
+		return 0
+	fi
+	
+	brew install "$package" "$@"
+}
+
+bindgen_wrapper_installBindgen()
+{
+	LLVM_CONFIG_PATH="$llvmPrefix"/bin/llvm-config \
+	LIBCLANG_PATH="$llvmPrefix"/lib \
+	LIBCLANG_STATIC_PATH="$llvmPrefix"/lib \
+		bindgen_wrapper_cargoBinaryInstall bindgen
+}
+
+bindgen_wrapper_installHeadersAndCopyOverrides()
+{
+	rm -rf "$temporaryIncludeFolder"
+	mkdir -m 0755 -p "$temporaryIncludeFolder"
+	rsync --quiet --archive "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
+}
+
+bindgen_wrapper_createOutputFolder()
+{
+	local outputFolderPath="${outputFilePath%/*}"
+	mkdir -m 0755 -p "$outputFolderPath"
+}
+
+bindgen_wrapper_addTacFallbackIfNotPresent()
+{
+	# Note: tac does not exist on Mac OS X
+	if ! command -v tac 1>/dev/null 2>/dev/null; then
+		bindgen_wrapper_ensureRequiredBinariesArePresent "Required because 'tac' binary is not present" tail
+		tac()
+		{
+			tail -r -- "$@"
+		}
+	fi
+}
+
+bindgen_wrapper_rawGeneration()
+{
+	# Scope of bindings
+	cd "$temporaryIncludeFolder" 1>/dev/null 2>/dev/null
+	
+		set --
+		local wantedHeaderFile
+		set +f
+		for wantedHeaderFile in *.h
+		do
+			set -f
+			set -- "$@" --match="$wantedHeaderFile"
+		done
+		set -f
+	
+	cd - 1>/dev/null 2>/dev/null
+	
+	local newline='\'$'\n'
+	
+	# sed line explanations:-
+	# 1 - remove bindgen comment
+	# 2 - remove multiline allow that (a) rustfmt can't format and (b) is no longer the first item in the file because of the use statements above and (c) is overly broad
+	# 3 to 7 - remove prefixes in favour of use statements above for readability
+	# 8 - suppress Copy warnings for empty enums which are types for opaque structs, format them (rustfmt can't)
+	"$_program_path"/bindgen-macosx "$@" --convert-macros --macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong --use-core --ctypes-prefix=XXX "$temporaryIncludeFolder"/"$rootIncludeFileName" -- -U__BLOCKS__ | \
+	sed \
+		-e '/automatically generated by rust-bindgen/d' \
+		-e '/#!\[allow(dead_code,/,/non_snake_case/d' \
+		-e 's/::XXX:://g' \
+		-e 's/::core::clone:://g' \
+		-e 's/::core::option:://g' \
+		-e 's/::core::mem:://g' \
+		-e 's/::core::default:://g' \
+		-e 's/^pub enum \(.*\) { }/#[allow(missing_copy_implementations)]'"$newline"'#[derive(Debug)]'"$newline"'pub enum \1'"$newline"'{'"$newline"'}/g'
+}
+
+bindgen_wrapper_rustfmt()
+{
+	local newline='\'$'\n'
+	
+	# sed line explanations-
+	# 1 - add newline before '{' in an extern block (rustfmt can't)
+	# 2 - add newline before '{' in an empty enum (rustfmt can't)
+	# 3 - space out better
+	rustfmt --config-path "$_program_path"/.. | \
+	sed \
+		-e 's/^extern "C" {/extern "C"'"$newline"'{/g' \
+		-e 's/^pub enum \(.*\) {/pub enum \1'"$newline"'{/g' \
+		-e 's/^}$/}'"$newline"'/g' -e 's/^pub type \(.*\)$/pub type \1'"$newline"'/g'
+}
+
+bindgen_wrapper_buildCheck()
+{
+	cd "$_program_path"/.. 1>/dev/null 2>/dev/null
+		
+		cargo clean
+		
+		if ! cargo build; then
+			bindgen_wrapper_fail "Make sure that Cargo.toml contains a dependency for libc, at least 0.2"
+		fi
+	
+	cd - 1>/dev/null 2>/dev/null
+	
+	printf '\n\n%s\n\n\n' "***** Generated and Compiles *****"
+}
+
+bindgen_wrapper_installPrerequisites()
+{
+	# Platform specific installation of dependencies
+	case "$platform" in
+		
+		Darwin)
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm and mbedtls and find their paths" brew
+			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs
+			bindgen_wrapper_macosxHomebrewInstall "$macosXHomebrewPackageName"
+		;;
+		
+		*)
+			# Need to add variants here; untested placeholder logic for now
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm and mbedtls and find their paths" sudo apk
+			sudo apk add llvm "$alpineLinuxPackageName"
+		;;
+		
+	esac
+	
+	bindgen_wrapper_cargoBinaryInstall rustfmt
+	bindgen_wrapper_installBindgen
+}
+
+bindgen_wrapper_prepend()
+{
+	local fileToPrepend
+	for fileToPrepend in "$configurationFolderPath"/preamble.rs "$_program_path"/includes.rs "$configurationFolderPath"/post-includes.rs
+	do
+		if [ -s "$fileToPrepend" ]; then
+			cat "$fileToPrepend"
+			printf '\n'
+		fi
+	done
+		
+	local IFS=' '
+	local linkValue
+	# quotes deliberately ommitted
+	for linkValue in $link
+	do
+		cat <<-EOF
+			
+			#[link(name = "${linkValue}")]
+			extern "C"
+			{
+			}
+		EOF
+	done
+}
+
+bindgen_wrapper_generate()
+{
+	local temporaryIncludeFolder="$_program_path"/temporary
+	bindgen_wrapper_installHeadersAndCopyOverrides
+	
+	bindgen_wrapper_createOutputFolder
+	
+	{
+		bindgen_wrapper_prepend
+		bindgen_wrapper_rawGeneration | postprocess_after_generation | bindgen_wrapper_rustfmt | postprocess_after_rustfmt
+	} >"$outputFilePath"
+}
+
+bindgen_wrapper_sourceConfigurationThenExecute()
+{
+	local functionToExecute="$1"
+	shift 1
+	
+	local configurationFolderPath="$homeFolder"/bindgen-wrapper.conf.d
+	local configurationFilePath="$configurationFolderPath"/configuration.sh
+	if [ ! -s "$configurationFilePath" ]; then
+		bindgen_wrapper_fail "Configuration file '$configurationFilePath' is not present, not readable or empty"
+	fi
+	local bindingsName
+	local rootIncludeFileName
+	local link
+	local macosXHomebrewPackageName
+	local alpineLinuxPackageName
+	local outputFilePath="$homeFolder"/src/lib.rs
+	local headersFolderPath=''
+	postprocess_after_generation()
+	{
+		:
+	}
+	postprocess_after_rustfmt()
+	{
+		:
+	}
+	. "$configurationFolderPath"/configuration.sh
+	
+	if [ -z "$headersFolderPath" ]; then
+		headersFolderPath="$prefix"/include/"$bindingsName"
+	fi
+	
+	$functionToExecute "$@"
+}
+
+bindgen_wrapper_execute()
+{
+	bindgen_wrapper_installPrerequisites
+	bindgen_wrapper_generate
+	bindgen_wrapper_buildCheck
+}
+
+bindgen_wrapper_main()
+{
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname cargo rm mkdir rsync cat sed
+
+	local _program_path="$(_program_path_find)"
+	local homeFolder="$_program_path"/../..
+	local platform="$(uname)"
+	
+	# Platform variations that can be overridden by configuration
+	case "$platform" in
+		
+		Darwin)
+			local prefix="$(brew --prefix)"
+			local llvmPrefix="$prefix"/opt/llvm
+		;;
+		
+		*)
+			local prefix='/usr'
+			local llvmPrefix="$prefix"
+		;;
+		
+	esac
+	
+	bindgen_wrapper_sourceConfigurationThenExecute bindgen_wrapper_execute
+}
+
+bindgen_wrapper_main "$@"

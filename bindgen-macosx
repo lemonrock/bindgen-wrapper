@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+# This file is part of bindgen-wrapper. It is subject to the license terms in the COPYRIGHT file found in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/bindgen-wrapper/master/COPYRIGHT. No part of bindgen-wrapper, including this file, may be copied, modified, propagated, or distributed except according to the terms contained in the COPYRIGHT file.
+# Copyright © 2016 The developers of bindgen-wrapper. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/bindgen-wrapper/master/COPYRIGHT.
+
+
+set -e
+set -u
+set -f
+
+if ! command -v brew 1>/dev/null 2>/dev/null; then
+	printf '%s\n' "Could not locate Homebrew brew in PATH" 1>&2
+	exit 1
+fi
+
+if ! command -v bindgen 1>/dev/null 2>/dev/null; then
+	printf '%s\n' "Could not locate bindgen in PATH" 1>&2
+	exit 1
+fi
+
+prefix="$(brew --prefix)"
+llvmPrefix="$prefix"/opt/llvm
+DYLD_LIBRARY_PATH="$llvmPrefix"/lib CLANG_PATH="$llvmPrefix"/bin/clang exec bindgen "$@"
