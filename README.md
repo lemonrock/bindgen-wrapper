@@ -20,7 +20,7 @@ cd my-crate-repo
 mkdir -m 0755 -p tools
 git submodule add https://github.com/lemonrock/bindgen-wrapper.git tools/bindgen-wrapper
 git submodule update --init --recursive
-ln -s tools/bindgen-wrapper/generate-bindings
+ln -s tools/bindgen-wrapper/bindgen-wrapper
 
 cd -
 ```
