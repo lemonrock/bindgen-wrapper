@@ -49,7 +49,14 @@ touch bindgen-wrapper.conf.d/post-includes.rs
 touch bindgen-wrapper.conf.d/configuration.sh
 ```
 
-See [mbedtls-sys] for an example of `configuration.sh`. As a minimum, you should define `bindingsName`, `rootIncludeFileName`, `link`, `macosXHomebrewPackageName` and `alpineLinuxPackageName` (if known). The functions `postprocess_after_generation` and `postprocess_after_rustfmt` default to empty. The statement `bindgen_wrapper_addTacFallbackIfNotPresent` is only necessary if either `postprocess_after_generation` or `postprocess_after_rustfmt` need to use the `tac` binary.
+See [mbedtls-sys] for an example of `configuration.sh`. As a minimum, you should define `bindingsName`, `rootIncludeFileName` and `link`. `link` is a space-separated list of lib names (on Unix systems, omit any `lib` prefix, eg `libmbedtls` is `mbedtls`). The functions `postprocess_after_generation` and `postprocess_after_rustfmt` default to empty. The statement `bindgen_wrapper_addTacFallbackIfNotPresent` is only necessary if either `postprocess_after_generation` or `postprocess_after_rustfmt` need to use the `tac` binary. The values `macosXHomebrewPackageName` and `alpineLinuxPackageName` (if known) can be set to a space-separated list of packages to install as prerequisites, perhaps containing header files. `headersFolderPath` can be used to specify a repository-local or unusual location for headers; it defaults to `/usr/include/$bindingsName` on Linux and `$(brew --prefix)/include/$bindingsName` on Mac OS X.
+
+The following read-only variables are available to `configuration.sh`:-
+
+* `homeFolder` - the root of the git repository, ie `tools/bindgen/../..`.
+* `configurationFolderPath` - the parent folder containing `configuration.sh`
+
+These values may not be absolute. Do not `cd` inside `configuration.sh`. The [mbedtls-sys] `configuration.sh` uses `homeFolder` to find a local copy of the mbedtls source code included as a git submodule.
 
 ## Extras
 

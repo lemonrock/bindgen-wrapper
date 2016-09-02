@@ -139,6 +139,13 @@ bindgen_wrapper_macosxHomebrewInstall()
 	brew install "$package" "$@"
 }
 
+bindgen_wrapper_alpineLinuxInstall()
+{
+	local package="$1"
+	
+	sudo apk add "$package"
+}
+
 bindgen_wrapper_installBindgen()
 {
 	LLVM_CONFIG_PATH="$llvmPrefix"/bin/llvm-config \
@@ -241,21 +248,36 @@ bindgen_wrapper_buildCheck()
 bindgen_wrapper_installPrerequisites()
 {
 	# Platform specific installation of dependencies
+	local packagesToInstall
+	local packageInstallFunction
 	case "$platform" in
 		
 		Darwin)
-			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm and mbedtls and find their paths" brew
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm --with-shared-libs" brew
 			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs
-			bindgen_wrapper_macosxHomebrewInstall "$macosXHomebrewPackageName"
+			
+			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
+			packagesToInstall="$macosXHomebrewPackageNames"
 		;;
 		
 		*)
 			# Need to add variants here; untested placeholder logic for now
-			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm and mbedtls and find their paths" sudo apk
-			sudo apk add llvm "$alpineLinuxPackageName"
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm" sudo apk
+			bindgen_wrapper_alpineLinuxInstall llvm
+			
+			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
+			packagesToInstall="$alpineLinuxPackageNames"
 		;;
 		
 	esac
+	
+	local IFS=' '
+	local localPackageManagerPackage
+	# quotes deliberately ommitted
+	for localPackageManagerPackage in $packagesToInstall
+	do
+		$packageInstallFunction "$localPackageManagerPackage"
+	done
 	
 	bindgen_wrapper_cargoBinaryInstall rustfmt
 	bindgen_wrapper_installBindgen
@@ -313,8 +335,8 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local bindingsName
 	local rootIncludeFileName
 	local link
-	local macosXHomebrewPackageName
-	local alpineLinuxPackageName
+	local macosXHomebrewPackageNames
+	local alpineLinuxPackageNames
 	local outputFilePath="$homeFolder"/src/lib.rs
 	local headersFolderPath=''
 	postprocess_after_generation()
