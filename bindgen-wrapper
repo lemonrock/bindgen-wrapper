@@ -368,7 +368,9 @@ bindgen_wrapper_main()
 	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname cargo rm mkdir rsync cat sed
 
 	local _program_path="$(_program_path_find)"
-	local homeFolder="$_program_path"/../..
+	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
+		homeFolder="$(pwd -P)"
+	cd - 1>/dev/null 2>/dev/null
 	local platform="$(uname)"
 	
 	# Platform variations that can be overridden by configuration
