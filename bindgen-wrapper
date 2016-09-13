@@ -253,8 +253,8 @@ bindgen_wrapper_installPrerequisites()
 	case "$platform" in
 		
 		Darwin)
-			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm --with-shared-libs" brew
-			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm --with-shared-libs --with-all-targets" brew
+			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs --with-all-targets
 			
 			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
 			packagesToInstall="$macosXHomebrewPackageNames"
