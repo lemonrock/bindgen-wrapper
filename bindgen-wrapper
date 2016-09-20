@@ -339,6 +339,10 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local alpineLinuxPackageNames
 	local outputFilePath="$homeFolder"/src/lib.rs
 	local headersFolderPath=''
+	preprocess_before_headersFolderPath()
+	{
+		:
+	}
 	postprocess_after_generation()
 	{
 		:
@@ -359,6 +363,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 bindgen_wrapper_execute()
 {
 	bindgen_wrapper_installPrerequisites
+	preprocess_before_headersFolderPath
 	bindgen_wrapper_generate
 	bindgen_wrapper_buildCheck
 }
