@@ -370,7 +370,8 @@ bindgen_wrapper_execute()
 
 bindgen_wrapper_main()
 {
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname cargo rm mkdir rsync cat sed
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname rm mkdir rsync cat sed
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Please make sure cargo is present; you can install it using rustup; see https://www.rustup.rs/ or install using   https://www.rustup.rs/" cargo
 
 	local _program_path="$(_program_path_find)"
 	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
