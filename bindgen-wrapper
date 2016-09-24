@@ -371,7 +371,7 @@ bindgen_wrapper_execute()
 bindgen_wrapper_main()
 {
 	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname rm mkdir rsync cat sed
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Please make sure cargo is present; you can install it using rustup; see https://www.rustup.rs/ or install using   curl https://sh.rustup.rs -sSf | sh" cargo
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Please make sure cargo is present; you can install it using rustup; see https://www.rustup.rs/ or install using   curl https://sh.rustup.rs -sSf | sh; on Alpine, etc, use https://github.com/emk/rust-musl-builder  :  git clone https://github.com/rust-lang-nursery/rustup.rs; cd rustup.rs; docker run --rm -it -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder cargo build --release; ./rustup-init " cargo
 
 	local _program_path="$(_program_path_find)"
 	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
