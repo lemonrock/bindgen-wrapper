@@ -418,11 +418,13 @@ bindgen_wrapper_main()
 		
 		Linux)
 			if command -v apk 1>/dev/null 2>/dev/null apk; then
-				bindgen_wrapper_alpineLinuxInstall musl-dev
+				bindgen_wrapper_alpineLinuxInstall musl-dev clang-libs
 				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rustc cargo
 			else
-				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
-				curl https://sh.rustup.rs -sSf | sh
+				if ! command -v apk 1>/dev/null 2>/dev/null apk; then
+					bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
+					curl https://sh.rustup.rs -sSf | sh
+				fi
 			fi
 			local prefix='/usr'
 			local llvmPrefix="$prefix"
