@@ -82,6 +82,26 @@ bindgen_wrapper_fail()
 	exit 1
 }
 
+bindgen_wrapper_ensureRequiredBinariesArePresent()
+{
+	local reason="$1"
+	shift 1
+	
+	local binary
+	local missing=false
+	for binary in "$@"
+	do
+		if ! command -v "$binary" 1>/dev/null 2>/dev/null; then
+			printf '%s\n' "The binary '$binary' needs to be in the path" 1>&2
+			missing=true
+		fi
+	done
+	
+	if $missing; then
+		bindgen_wrapper_fail "Please make sure that the missing binaries are installed because '$reason'"
+	fi
+}
+
 bindgen_wrapper_cargoBinaryInstall()
 {
 	local crate="$1"
@@ -101,26 +121,6 @@ bindgen_wrapper_cargoBinaryInstall()
 	
 	if ! command -v "$crate" 1>/dev/null 2>/dev/null; then
 		bindgen_wrapper_fail "Please make sure that binaries installed by 'cargo' (such as '$crate') are in your PATH"
-	fi
-}
-
-bindgen_wrapper_ensureRequiredBinariesArePresent()
-{
-	local reason="$1"
-	shift 1
-	
-	local binary
-	local missing=false
-	for binary in "$@"
-	do
-		if ! command -v "$binary" 1>/dev/null 2>/dev/null; then
-			printf '%s\n' "The binary '$binary' needs to be in the path" 1>&2
-			missing=true
-		fi
-	done
-	
-	if $missing; then
-		bindgen_wrapper_fail "Please make sure that the missing binaries are installed because '$reason'"
 	fi
 }
 
@@ -144,6 +144,30 @@ bindgen_wrapper_alpineLinuxInstall()
 	local package="$1"
 	
 	sudo apk add "$package"
+}
+
+bindgen_wrapper_alpineLinuxPrepare()
+{
+	sudo apk update
+	sudo apk upgrade
+	
+	local toInstall=''
+	local package
+	for package in "$@"
+	do
+		if ! apk info --installed gcc 1>/dev/null 2>/dev/null; then
+			if [ -z "$toInstall" ]; then
+				toInstall="$package"
+			else
+				toInstall="$toInstall $package"
+			fi
+		fi
+	done
+	
+	if [ -n "$toInstall" ]; then
+		# Note lack of quotes
+		IFS=' ' sudo apk add $toInstall
+	fi
 }
 
 bindgen_wrapper_installBindgen()
@@ -263,7 +287,7 @@ bindgen_wrapper_installPrerequisites()
 		*)
 			# Need to add variants here; untested placeholder logic for now
 			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm" sudo apk
-			bindgen_wrapper_alpineLinuxInstall llvm
+			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs
 			
 			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
 			packagesToInstall="$alpineLinuxPackageNames"
@@ -370,21 +394,35 @@ bindgen_wrapper_execute()
 
 bindgen_wrapper_main()
 {
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname rm mkdir rsync cat sed
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Please make sure cargo is present; you can install it using rustup; see https://www.rustup.rs/ or install using   curl https://sh.rustup.rs -sSf | sh; on Alpine, etc, use https://github.com/emk/rust-musl-builder  :  git clone https://github.com/rust-lang-nursery/rustup.rs; cd rustup.rs; docker run --rm -it -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder cargo build --release; ./rustup-init " cargo
-
 	local _program_path="$(_program_path_find)"
 	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
 		homeFolder="$(pwd -P)"
 	cd - 1>/dev/null 2>/dev/null
-	local platform="$(uname)"
+	
+	if command -v uname 1>/dev/null 2>/dev/null; then
+		local platform="$(uname)"
+	else
+		bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname
+	fi
+	
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" rm mkdir cat sed
 	
 	# Platform variations that can be overridden by configuration
 	case "$platform" in
 		
 		Darwin)
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" brew
 			local prefix="$(brew --prefix)"
 			local llvmPrefix="$prefix"/opt/llvm
+		;;
+		
+		Linux)
+			if command -v 1>/dev/null 2>/dev/null apk; then
+				bindgen_wrapper_installPrerequisites rsync rust cargo
+			else
+				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
+				curl https://sh.rustup.rs -sSf | sh
+			fi
 		;;
 		
 		*)
@@ -393,6 +431,7 @@ bindgen_wrapper_main()
 		;;
 		
 	esac
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" rsync rust
 	
 	bindgen_wrapper_sourceConfigurationThenExecute bindgen_wrapper_execute
 }
