@@ -418,7 +418,7 @@ bindgen_wrapper_main()
 		
 		Linux)
 			if command -v apk 1>/dev/null 2>/dev/null apk; then
-				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rust cargo
+				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rustc cargo
 			else
 				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
 				curl https://sh.rustup.rs -sSf | sh
