@@ -301,7 +301,7 @@ bindgen_wrapper_installPrerequisites()
 		Linux)
 			# Need to add variants here; untested placeholder logic for now
 			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm" sudo apk
-			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs clang
+			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs clang clang-dev
 			
 			packageInstallFunction=bindgen_wrapper_alpineLinuxInstall
 			packagesToInstall="$alpineLinuxPackageNames"
