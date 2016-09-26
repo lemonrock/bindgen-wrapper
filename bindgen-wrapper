@@ -287,7 +287,7 @@ bindgen_wrapper_installPrerequisites()
 		*)
 			# Need to add variants here; untested placeholder logic for now
 			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm" sudo apk
-			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs musl-dev
+			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs
 			
 			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
 			packagesToInstall="$alpineLinuxPackageNames"
@@ -418,16 +418,18 @@ bindgen_wrapper_main()
 		
 		Linux)
 			if command -v apk 1>/dev/null 2>/dev/null apk; then
+				bindgen_wrapper_alpineLinuxInstall musl-dev
 				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rustc cargo
 			else
 				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
 				curl https://sh.rustup.rs -sSf | sh
 			fi
+			local prefix='/usr'
+			local llvmPrefix="$prefix"
 		;;
 		
 		*)
-			local prefix='/usr'
-			local llvmPrefix="$prefix"
+			bindgen_wrapper_fail "Unsupported platform '$platform'"
 		;;
 		
 	esac
