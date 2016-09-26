@@ -431,7 +431,7 @@ bindgen_wrapper_main()
 		;;
 		
 	esac
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" rsync rust
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" rsync rustc cargo
 	
 	bindgen_wrapper_sourceConfigurationThenExecute bindgen_wrapper_execute
 }
