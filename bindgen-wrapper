@@ -146,6 +146,11 @@ bindgen_wrapper_alpineLinuxInstall()
 	sudo apk add "$package"
 }
 
+bingen_wrapper_isAlpineLinuxIfIsLinux()
+{
+	command -v apk 1>/dev/null 2>/dev/null
+}
+
 bindgen_wrapper_alpineLinuxPrepare()
 {
 	sudo apk update
@@ -172,8 +177,17 @@ bindgen_wrapper_alpineLinuxPrepare()
 
 bindgen_wrapper_installBindgen()
 {
+	local libclangPath="$llvmPrefix"/lib
+	if [ "$platform" = 'Linux' ]; then
+		if bingen_wrapper_isAlpineLinuxIfIsLinux; then
+			rm -rf "$_program_path"/libclang.so
+			ln -s /usr/lib/libclang.so.3.8 "$_program_path"/libclang.so
+			libclangPath="$_program_path"
+		fi
+	fi
+	
 	LLVM_CONFIG_PATH="$llvmPrefix"/bin/llvm-config \
-	LIBCLANG_PATH="$llvmPrefix"/lib \
+	LIBCLANG_PATH="$libclangPath" \
 	LIBCLANG_STATIC_PATH="$llvmPrefix"/lib \
 		bindgen_wrapper_cargoBinaryInstall bindgen
 }
@@ -284,7 +298,7 @@ bindgen_wrapper_installPrerequisites()
 			packagesToInstall="$macosXHomebrewPackageNames"
 		;;
 		
-		*)
+		Linux)
 			# Need to add variants here; untested placeholder logic for now
 			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm" sudo apk
 			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs clang
@@ -417,11 +431,11 @@ bindgen_wrapper_main()
 		;;
 		
 		Linux)
-			if command -v apk 1>/dev/null 2>/dev/null apk; then
+			if bingen_wrapper_isAlpineLinuxIfIsLinux; then
 				bindgen_wrapper_alpineLinuxInstall musl-dev clang-libs
-				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rustc cargo
+				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rustc cargo ln
 			else
-				if ! command -v apk 1>/dev/null 2>/dev/null apk; then
+				if ! bingen_wrapper_isAlpineLinuxIfIsLinux; then
 					bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
 					curl https://sh.rustup.rs -sSf | sh
 				fi
