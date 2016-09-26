@@ -97,7 +97,7 @@ bindgen_wrapper_cargoBinaryInstall()
 		return 0
 	fi
 	
-	cargo install "$@" "$program"
+	cargo install "$@" "$crate"
 	
 	if ! command -v "$crate" 1>/dev/null 2>/dev/null; then
 		bindgen_wrapper_fail "Please make sure that binaries installed by 'cargo' (such as '$crate') are in your PATH"
