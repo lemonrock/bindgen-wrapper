@@ -153,9 +153,6 @@ bingen_wrapper_isAlpineLinuxIfIsLinux()
 
 bindgen_wrapper_alpineLinuxPrepare()
 {
-	sudo apk update
-	sudo apk upgrade
-	
 	local toInstall=''
 	local package
 	for package in "$@"
@@ -170,6 +167,9 @@ bindgen_wrapper_alpineLinuxPrepare()
 	done
 	
 	if [ -n "$toInstall" ]; then
+		sudo apk update
+		sudo apk upgrade
+		
 		# Note lack of quotes
 		IFS=' ' sudo apk add $toInstall
 	fi
