@@ -163,12 +163,12 @@ bindgen_wrapper_alpineLinuxInstall()
 		bindgen_wrapper_ensureRequiredBinariesArePresent "To check for and, if necessary, install the apk package '$package' as root" sudo
 		
 		if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
-			sudo apk update
-			sudo apk upgrade
+			sudo -p "Enter your password to call apk update before installing package '$package': " apk update
+			sudo -p "Enter your password to call apk upgrade before installing package '$package': "  apk upgrade
 			_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=false
 		fi
 		
-		sudo apk add "$package"
+		sudo -p "Enter your password to call apk add to install package '$package' (you may need to enable edge and testing repositories in /etc/apk/repositories): " apk add "$package"
 	fi
 }
 
@@ -216,15 +216,15 @@ bindgen_wrapper_addTacFallbackIfNotPresent()
 
 bindgen_wrapper_bindgen()
 {
-	set -- "$@" --convert-macros --macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong --use-core --ctypes-prefix=XXX "$temporaryIncludeFolder"/"$rootIncludeFileName"
+	set -- "$@" --convert-macros --macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong --use-core --ctypes-prefix=XXX "$temporaryIncludeFolder"/"$rootIncludeFileName" -- -I"$temporaryIncludeFolder"
 	case "$platform" in
 		
 		Darwin)
-			"$_program_path"/bindgen-macosx "$@" -- -U__BLOCKS__
+			"$_program_path"/bindgen-macosx "$@" -U__BLOCKS__
 		;;
 		
 		*)
-			CLANG_PATH="$llvmPrefix"/bin/clang bindgen "$@" --
+			CLANG_PATH="$llvmPrefix"/bin/clang bindgen "$@"
 		;;
 		
 	esac
