@@ -224,6 +224,7 @@ bindgen_wrapper_bindgen()
 		;;
 		
 		*)
+			echo CLANG_PATH="$llvmPrefix"/bin/clang ~/.cargo/bin/bindgen "$@" 1>&2
 			CLANG_PATH="$llvmPrefix"/bin/clang ~/.cargo/bin/bindgen "$@"
 		;;
 		
