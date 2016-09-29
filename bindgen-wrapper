@@ -159,7 +159,7 @@ bindgen_wrapper_alpineLinuxInstall()
 	
 	bindgen_wrapper_ensureRequiredBinariesArePresent "To check for the apk package '$package'" apk
 	
-	if ! apk --installed "$package" 1>/dev/null 2>/dev/null; then
+	if ! apk info --installed "$package" 1>/dev/null 2>/dev/null; then
 		bindgen_wrapper_ensureRequiredBinariesArePresent "To check for and, if necessary, install the apk package '$package' as root" sudo
 		
 		if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
