@@ -224,7 +224,7 @@ bindgen_wrapper_bindgen()
 		;;
 		
 		*)
-			CLANG_PATH="$llvmPrefix"/bin/clang bindgen "$@"
+			CLANG_PATH="$llvmPrefix"/bin/clang ~/.cargo/bin/bindgen "$@"
 		;;
 		
 	esac
@@ -381,7 +381,7 @@ bindgen_wrapper_rustfmt()
 	# 1 - add newline before '{' in an extern block (rustfmt can't)
 	# 2 - add newline before '{' in an empty enum (rustfmt can't)
 	# 3 - space out better
-	rustfmt --config-path "$_program_path"/.. | \
+	~/.cargo/bin/rustfmt --config-path "$_program_path"/.. | \
 	sed \
 		-e 's/^extern "C" {/extern "C"'"$newline"'{/g' \
 		-e 's/^pub enum \(.*\) {/pub enum \1'"$newline"'{/g' \
