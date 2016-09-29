@@ -264,7 +264,9 @@ bindgen_wrapper_installPrerequisites()
 				packageInstallFunction=bindgen_wrapper_alpineLinuxInstall
 				packagesToInstall="$alpineLinuxPackageNames"
 			else
-				if ! command -v rustc 1>/dev/null 2>/dev/null; then
+				if command -v rustc 1>/dev/null 2>/dev/null; then
+					export PATH=~/.cargo/bin:"$PATH"
+				else
 					if [ -x ~/.cargo/bin/rustc ]; then
 						export PATH=~/.cargo/bin:"$PATH"
 					else
