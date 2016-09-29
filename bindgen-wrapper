@@ -82,6 +82,11 @@ bindgen_wrapper_fail()
 	exit 1
 }
 
+bindgen_wrapper_isAlpineLinuxIfIsLinux()
+{
+	command -v apk 1>/dev/null 2>/dev/null
+}
+
 bindgen_wrapper_ensureRequiredBinariesArePresent()
 {
 	local reason="$1"
@@ -124,6 +129,8 @@ bindgen_wrapper_cargoBinaryInstall()
 	fi
 }
 
+_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=true
+
 bindgen_wrapper_macosxHomebrewInstall()
 {
 	local package="$1"
@@ -136,42 +143,32 @@ bindgen_wrapper_macosxHomebrewInstall()
 		return 0
 	fi
 	
+	if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
+		brew update
+		brew upgrade
+		_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=false
+	fi
+	
 	brew install "$package" "$@"
 }
 
 bindgen_wrapper_alpineLinuxInstall()
 {
 	local package="$1"
+	shift 1
 	
-	sudo apk add "$package"
-}
-
-bingen_wrapper_isAlpineLinuxIfIsLinux()
-{
-	command -v apk 1>/dev/null 2>/dev/null
-}
-
-bindgen_wrapper_alpineLinuxPrepare()
-{
-	local toInstall=''
-	local package
-	for package in "$@"
-	do
-		if ! apk info --installed gcc 1>/dev/null 2>/dev/null; then
-			if [ -z "$toInstall" ]; then
-				toInstall="$package"
-			else
-				toInstall="$toInstall $package"
-			fi
-		fi
-	done
+	bindgen_wrapper_ensureRequiredBinariesArePresent "To check for the apk package '$package'" apk
 	
-	if [ -n "$toInstall" ]; then
-		sudo apk update
-		sudo apk upgrade
+	if ! apk --installed "$package" 1>/dev/null 2>/dev/null; then
+		bindgen_wrapper_ensureRequiredBinariesArePresent "To check for and, if necessary, install the apk package '$package' as root" sudo
 		
-		# Note lack of quotes
-		IFS=' ' sudo apk add $toInstall
+		if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
+			sudo apk update
+			sudo apk upgrade
+			_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=false
+		fi
+		
+		sudo apk add "$package"
 	fi
 }
 
@@ -179,7 +176,7 @@ bindgen_wrapper_installBindgen()
 {
 	local libclangPath="$llvmPrefix"/lib
 	if [ "$platform" = 'Linux' ]; then
-		if bingen_wrapper_isAlpineLinuxIfIsLinux; then
+		if bindgen_wrapper_isAlpineLinuxIfIsLinux; then
 			rm -rf "$_program_path"/libclang.so
 			ln -s /usr/lib/libclang.so.3.8 "$_program_path"/libclang.so
 			libclangPath="$_program_path"
@@ -231,6 +228,111 @@ bindgen_wrapper_bindgen()
 		;;
 		
 	esac
+}
+
+bindgen_wrapper_installPrerequisites()
+{
+	# Platform specific installation of dependencies
+	local packagesToInstall
+	local packageInstallFunction
+	case "$platform" in
+		
+		Darwin)
+			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs --with-all-targets
+			
+			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
+			packagesToInstall="$macosXHomebrewPackageNames"
+		;;
+		
+		Linux)
+			if bindgen_wrapper_isAlpineLinuxIfIsLinux; then
+				bindgen_wrapper_alpineLinuxInstall llvm
+				bindgen_wrapper_alpineLinuxInstall llvm-static
+				bindgen_wrapper_alpineLinuxInstall llvm-dev
+				bindgen_wrapper_alpineLinuxInstall llvm-libs
+				bindgen_wrapper_alpineLinuxInstall clang-libs
+				bindgen_wrapper_alpineLinuxInstall clang
+				bindgen_wrapper_alpineLinuxInstall clang-dev
+			
+				# Provides C library headers
+				bindgen_wrapper_alpineLinuxInstall musl-dev
+				
+				# Provides Rust
+				bindgen_wrapper_alpineLinuxInstall rust
+				bindgen_wrapper_alpineLinuxInstall cargo
+			
+				packageInstallFunction=bindgen_wrapper_alpineLinuxInstall
+				packagesToInstall="$alpineLinuxPackageNames"
+			else
+				if ! command -v rustc 1>/dev/null 2>/dev/null; then
+					if [ -x ~/.cargo/bin/rustc ]; then
+						export PATH=~/.cargo/bin:"$PATH"
+					else
+						if command -v cargo 1>/dev/null 2>/dev/null; then
+							bindgen_wrapper_fail "rustc is in the PATH but not cargo; this is an unsupported combination"
+						fi
+
+						bindgen_wrapper_ensureRequiredBinariesArePresent "Required to install rust and cargo using rustup" curl sh
+						curl https://sh.rustup.rs -sSf | sh
+						export PATH=~/.cargo/bin:"$PATH"
+					fi
+				fi
+				
+				bindgen_wrapper_fail "Only Alpine Linux systems using the 'apk' package manager are currently supported; we need to install gcc and clang"
+			fi
+		;;
+		
+	esac
+	
+	local IFS=' '
+	local localPackageManagerPackage
+	# quotes deliberately ommitted
+	for localPackageManagerPackage in $packagesToInstall
+	do
+		$packageInstallFunction "$localPackageManagerPackage"
+	done
+	
+	bindgen_wrapper_cargoBinaryInstall rustfmt
+	bindgen_wrapper_installBindgen
+}
+
+bindgen_wrapper_prepend()
+{
+	local fileToPrepend
+	for fileToPrepend in "$configurationFolderPath"/preamble.rs "$_program_path"/includes.rs "$configurationFolderPath"/post-includes.rs
+	do
+		if [ -s "$fileToPrepend" ]; then
+			cat "$fileToPrepend"
+			printf '\n'
+		fi
+	done
+		
+	local IFS=' '
+	local linkValue
+	# quotes deliberately ommitted
+	for linkValue in $link
+	do
+		cat <<-EOF
+			
+			#[link(name = "${linkValue}")]
+			extern "C"
+			{
+			}
+		EOF
+	done
+}
+
+bindgen_wrapper_generate()
+{
+	local temporaryIncludeFolder="$_program_path"/temporary
+	bindgen_wrapper_installHeadersAndCopyOverrides
+	
+	bindgen_wrapper_createOutputFolder
+	
+	{
+		bindgen_wrapper_prepend
+		bindgen_wrapper_rawGeneration | postprocess_after_generation | bindgen_wrapper_rustfmt | postprocess_after_rustfmt
+	} >"$outputFilePath"
 }
 
 bindgen_wrapper_rawGeneration()
@@ -299,83 +401,6 @@ bindgen_wrapper_buildCheck()
 	printf '\n\n%s\n\n\n' "***** Generated and Compiles *****"
 }
 
-bindgen_wrapper_installPrerequisites()
-{
-	# Platform specific installation of dependencies
-	local packagesToInstall
-	local packageInstallFunction
-	case "$platform" in
-		
-		Darwin)
-			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm --with-shared-libs --with-all-targets" brew
-			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs --with-all-targets
-			
-			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
-			packagesToInstall="$macosXHomebrewPackageNames"
-		;;
-		
-		Linux)
-			# Need to add variants here; untested placeholder logic for now
-			bindgen_wrapper_ensureRequiredBinariesArePresent "Needed to install llvm" sudo apk
-			bindgen_wrapper_alpineLinuxInstall llvm llvm-static llvm-dev llvm-libs clang clang-dev
-			
-			packageInstallFunction=bindgen_wrapper_alpineLinuxInstall
-			packagesToInstall="$alpineLinuxPackageNames"
-		;;
-		
-	esac
-	
-	local IFS=' '
-	local localPackageManagerPackage
-	# quotes deliberately ommitted
-	for localPackageManagerPackage in $packagesToInstall
-	do
-		$packageInstallFunction "$localPackageManagerPackage"
-	done
-	
-	bindgen_wrapper_cargoBinaryInstall rustfmt
-	bindgen_wrapper_installBindgen
-}
-
-bindgen_wrapper_prepend()
-{
-	local fileToPrepend
-	for fileToPrepend in "$configurationFolderPath"/preamble.rs "$_program_path"/includes.rs "$configurationFolderPath"/post-includes.rs
-	do
-		if [ -s "$fileToPrepend" ]; then
-			cat "$fileToPrepend"
-			printf '\n'
-		fi
-	done
-		
-	local IFS=' '
-	local linkValue
-	# quotes deliberately ommitted
-	for linkValue in $link
-	do
-		cat <<-EOF
-			
-			#[link(name = "${linkValue}")]
-			extern "C"
-			{
-			}
-		EOF
-	done
-}
-
-bindgen_wrapper_generate()
-{
-	local temporaryIncludeFolder="$_program_path"/temporary
-	bindgen_wrapper_installHeadersAndCopyOverrides
-	
-	bindgen_wrapper_createOutputFolder
-	
-	{
-		bindgen_wrapper_prepend
-		bindgen_wrapper_rawGeneration | postprocess_after_generation | bindgen_wrapper_rustfmt | postprocess_after_rustfmt
-	} >"$outputFilePath"
-}
-
 bindgen_wrapper_sourceConfigurationThenExecute()
 {
 	local functionToExecute="$1"
@@ -422,40 +447,31 @@ bindgen_wrapper_execute()
 	bindgen_wrapper_buildCheck
 }
 
-bindgen_wrapper_main()
+bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder()
 {
-	local _program_path="$(_program_path_find)"
+	_program_path="$(_program_path_find)"
 	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
 		homeFolder="$(pwd -P)"
 	cd - 1>/dev/null 2>/dev/null
+}
+
+bindgen_wrapper_main()
+{
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for basic operation" uname rm mkdir cat sed
 	
-	if command -v uname 1>/dev/null 2>/dev/null; then
-		local platform="$(uname)"
-	else
-		bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" uname
-	fi
-	
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" rm mkdir cat sed
+	bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder
 	
 	# Platform variations that can be overridden by configuration
+	local platform="$(uname)"
 	case "$platform" in
 		
 		Darwin)
-			bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" brew
+			bindgen_wrapper_ensureRequiredBinariesArePresent "Required for basic operation on Mac OS X" brew
 			local prefix="$(brew --prefix)"
-			local llvmPrefix="$prefix"/opt/llvm
+			local llvmPrefix="$(brew --prefix llvm)"
 		;;
 		
 		Linux)
-			if bingen_wrapper_isAlpineLinuxIfIsLinux; then
-				bindgen_wrapper_alpineLinuxInstall musl-dev clang-libs
-				bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation on Linux" rsync rustc cargo ln
-			else
-				if ! bingen_wrapper_isAlpineLinuxIfIsLinux; then
-					bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" curl sh
-					curl https://sh.rustup.rs -sSf | sh
-				fi
-			fi
 			local prefix='/usr'
 			local llvmPrefix="$prefix"
 		;;
@@ -465,7 +481,6 @@ bindgen_wrapper_main()
 		;;
 		
 	esac
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for operation" rsync rustc cargo
 	
 	bindgen_wrapper_sourceConfigurationThenExecute bindgen_wrapper_execute
 }
