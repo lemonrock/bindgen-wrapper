@@ -431,7 +431,7 @@ bindgen_wrapper_generate()
 	grep -v '^pub type ' "$temporaryFolderPath"/withoutConstants >"$temporaryFolderPath"/withoutConstantsWithoutTypes
 	
 	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs "$outputFolderPath"/functions "$temporaryFolderPath"/functions
-	set -x
+	
 	local namedFile=''
 	local name=''	
 	local attributes=''
@@ -653,6 +653,7 @@ ${line}"
 				set -f
 				
 				printf 'include!("%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
+				
 				{
 					cat "$configurationFolderPath"/preamble.rs
 					printf 'extern "C"\n{\n'
@@ -663,7 +664,7 @@ ${line}"
 			set -f
 		
 		cd - 1>/dev/null 2>/dev/null
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/functions >>"$outputFolderPath"/functions.rs
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
 		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
 		
 	} >"$outputFilePath"
