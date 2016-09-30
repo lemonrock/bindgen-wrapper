@@ -432,7 +432,174 @@ bindgen_wrapper_generate()
 	grep '^pub type ' "$outputFilePath".withoutConstants | sort >"$outputFolderPath"/.types.rs
 	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
 	
+	grep '^\tpub static mut ' "$outputFilePath".withoutConstantsWithoutTypes | sed -e 's/^\t//g' | sort >"$outputFolderPath"/.statics.rs
+	grep -v '^\tpub static mut ' "$outputFilePath".withoutConstantsWithoutTypes >"$outputFilePath".withoutConstantsWithoutTypesWithoutStatics
 	
+	local attributes=''
+	local namedFile=''
+	local name=''
+	local mode='next'
+	local line
+	local externC='ExpectingPubStaticMut'
+	while IFS='' read -r line
+	do
+		case "$mode" in
+			
+			next)
+		
+				case "$line" in
+			
+					'')
+						continue
+					;;
+			
+					'#'*)
+						if [ -z "$attributes" ]; then
+							attributes="$line"
+						else
+							attributes="${attributes}
+${line}"
+						fi
+					;;
+			
+					'pub struct '*)
+						name="${x#pub struct }"
+						namedFile="$outputFolderPath"/"$name".rs
+						{
+							cat "$configurationFolderPath"/preamble.rs
+							printf '%s\n' "$attributes"
+							printf '%s\n' "$line"
+						} >"$namedFile"
+						attributes=''
+						mode=openBrace
+					;;
+			
+					'pub enum '*)
+						name="${x#pub enum }"
+						{
+							cat "$configurationFolderPath"/preamble.rs
+							printf '%s\n' "$attributes"
+							printf '%s\n' "$line"
+						} >"$namedFile"
+						attributes=''
+						mode=openBrace
+					;;
+					
+					'impl '*)
+						printf '%s\n' "$line" >>"$namedFile"
+					;;
+					
+					'extern "C"')
+					
+						case "$externC" in
+							
+							ExpectingPubStaticMut)
+								mode=openBracePubStaticMut
+							;;
+							
+							ExpectingPubFn)
+								mode=openBracePubFn
+							;;
+							
+							*)
+								bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode' when externC '$externC'"
+							;;
+						
+						esac
+					;;
+					
+					*)
+						bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+					;;
+				
+				esac
+			;;
+			
+			openBrace)
+				if [ "$line" != '{' ]; then
+					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+				fi
+				printf '%s\n' "$line" >>"$namedFile"
+				mode=closeBrace
+			;;
+			
+			closeBrace)
+				if [ "$line" = '}' ]; then
+					mode=next
+				fi
+				printf '%s\n\n' "$line" >>"$namedFile"
+			;;
+			
+			openBracePubStaticMut)
+				if [ "$line" != '{' ]; then
+					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+				fi
+				{
+					cat "$configurationFolderPath"/preamble.rs
+					printf 'extern "C"\n{\n'
+				} >"$outputFolderPath"/lib.statics.rs
+				mode=closeBracePubStaticMut
+			;;
+			
+			closeBracePubStaticMut)
+				if [ "$line" = '}' ]; then
+					mode=next
+				fi
+				printf '%s\n\n' "$line" >>"$outputFolderPath"/lib.statics.rs
+			;;
+			
+			openBracePubFn)
+				if [ "$line" != '{' ]; then
+					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+				fi
+				{
+					cat "$configurationFolderPath"/preamble.rs
+					printf 'extern "C"\n{\n'
+				} >"$outputFolderPath"/lib.functions.rs
+				mode=closeBracePubFn
+			;;
+			
+			closeBracePubFn)
+				if [ "$line" = '}' ]; then
+					mode=next
+				fi
+				printf '%s\n\n' "$line" >>"$outputFolderPath"/lib.functions.rs
+			;;
+			
+			*)
+				bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+			;;
+			
+		esac
+		
+		case "$line" in
+			
+			'')
+				continue
+			;;
+			
+			'#'*)
+				printf '%s\n' >>"$workingFile"
+			;;
+			
+			
+			'impl '*)
+			
+				case "$mode" in
+					
+					next)
+						bindgen_wrapper_fail 'impl when looking for next'
+					;;
+					
+				esac
+			;;
+			
+			'extern '
+			
+		esac
+		
+		
+	done >"$outputFilePath".withoutConstantsWithoutTypes
 	
 	
 	#
