@@ -430,7 +430,7 @@ bindgen_wrapper_generate()
 
 	grep -v '^pub type ' "$temporaryFolderPath"/withoutConstants >"$temporaryFolderPath"/withoutConstantsWithoutTypes
 	
-	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs "$outputFolderPath"/functions "$temporaryFolderPath"/functions
+	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs "$outputFolderPath"/statics "$outputFolderPath"/functions "$temporaryFolderPath"/statics "$temporaryFolderPath"/functions
 	
 	local namedFile=''
 	local name=''	
@@ -559,7 +559,36 @@ ${line}"
 					mode=next
 					externC=ExpectingPubFn
 				else
-					printf '%s\n' "$line" >>"$temporaryFolderPath"/statics
+					local field_pub
+					local field_static
+					local field_mut
+					local staticName
+					local remaining
+					IFS=$'\t'" :" read -r field_pub field_static field_mut staticName remaining <<-EOF
+						${line}
+					EOF
+					
+					local chosenFileBaseName='miscellany'
+					local prefix
+					local fileBaseName
+					while IFS=' ' read -r prefix fileBaseName
+					do
+						if [ -z "$fileBaseName" ]; then
+							bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
+						fi
+						
+						case "$functionName" in
+							
+							"$prefix"*)
+								chosenFileBaseName="$fileBaseName"
+								break
+							;;
+							
+						esac
+						
+					done <"$configurationFolderPath"/static.mapping
+					
+					printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
 				fi
 			;;
 			
@@ -588,7 +617,7 @@ ${line}"
 					while IFS=' ' read -r prefix fileBaseName
 					do
 						if [ -z "$fileBaseName" ]; then
-							bindgen_wrapper_fail "prefix '$prefix' has no fileBaseName"
+							bindgen_wrapper_fail "function.mapping prefix '$prefix' has no fileBaseName"
 						fi
 						
 						case "$functionName" in
@@ -600,7 +629,7 @@ ${line}"
 							
 						esac
 						
-					done <"$configurationFolderPath"/function-mapping
+					done <"$configurationFolderPath"/function.mapping
 					
 					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
 				fi
@@ -623,13 +652,6 @@ ${line}"
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constants >>"$outputFolderPath"/constants.rs
 		rm -rf "$temporaryFolderPath"/constants
-	
-		printf 'include!("statics.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
-		printf 'extern "C"\n{\n' >>"$outputFolderPath"/statics.rs
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/statics >>"$outputFolderPath"/statics.rs
-		printf '}\n' >>"$outputFolderPath"/statics.rs
-		rm -rf "$temporaryFolderPath"/statics
 			
 		printf 'include!("types.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
@@ -645,6 +667,31 @@ ${line}"
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
 		rm -rf "$temporaryFolderPath"/structs
+		
+		printf 'include!("statics.rs");\n'
+		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
+		cd "$temporaryFolderPath"/statics 1>/dev/null 2>/dev/null
+			
+			set +f
+			local staticsSetFile
+			for staticsSetFile in *
+			do
+				set -f
+				
+				printf 'include!("statics/%s.rs");\n' "$staticsSetFile" >>"$temporaryFolderPath"/static-sets
+				
+				{
+					cat "$configurationFolderPath"/preamble.rs
+					printf 'extern "C"\n{\n'
+					LC_ALL=en_US.UTF-8 sort "$staticsSetFile"
+					printf '}\n'
+				} >"$outputFolderPath"/statics/"$staticsSetFile".rs
+			done
+			set -f
+		
+		cd - 1>/dev/null 2>/dev/null
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
+		rm -rf "$temporaryFolderPath"/static-sets "$temporaryFolderPath"/statics
 		
 		printf 'include!("functions.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
