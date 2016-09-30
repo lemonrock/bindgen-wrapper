@@ -344,6 +344,7 @@ bindgen_wrapper_prepend()
 bindgen_wrapper_generate()
 {
 	local temporaryIncludeFolder="$_program_path"/temporary
+	
 	bindgen_wrapper_installHeadersAndCopyOverrides
 	
 	bindgen_wrapper_createOutputFolder
@@ -356,9 +357,14 @@ bindgen_wrapper_generate()
 	
 	cat "$outputFilePath".afterGeneration | bindgen_wrapper_rustfmt >"$outputFilePath".rustfmt
 	
-	cat "$outputFilePath".rustfmt | postprocess_after_rustfmt >"$outputFilePath"
+	cat "$outputFilePath".rustfmt | postprocess_after_rustfmt >"$outputFilePath".afterRustfmt
 	
-	rm "$outputFilePath".prepend "$outputFilePath".rawGeneration "$outputFilePath".rustfmt
+	{
+		cat "$outputFilePath".prepend
+		cat "$outputFilePath".afterRustfmt
+	} >"$outputFilePath"
+	
+	#rm "$outputFilePath".prepend "$outputFilePath".rawGeneration "$outputFilePath".afterGeneration "$outputFilePath".rustfmt "$outputFilePath".afterRustfmt
 }
 
 bindgen_wrapper_rawGeneration()
