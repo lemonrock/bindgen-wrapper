@@ -612,15 +612,21 @@ ${line}"
 		rm -rf "$temporaryFolderPath"/functions
 	
 		printf '\n\n// Types\n'
-		sort "$temporaryFolderPath"/types
+		printf 'include!("types.rs");\n'
+		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
+		sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
 		rm -rf "$temporaryFolderPath"/types
 	
 		printf '\n\n// Enums\n'
-		sort "$temporaryFolderPath"/enums
+		printf 'include!("enums.rs");\n'
+		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
+		sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
 		rm -rf "$temporaryFolderPath"/enums
 	
 		printf '\n\n// Structs\n'
-		sort "$temporaryFolderPath"/structs
+		printf 'include!("structs.rs");\n'
+		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
+		sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
 		rm -rf "$temporaryFolderPath"/structs
 	} >"$outputFilePath"
 }
