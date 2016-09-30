@@ -426,6 +426,7 @@ bindgen_wrapper_generate()
 
 	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
 	
+	set -x
 	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs
 	
 	local namedFile=''
