@@ -435,6 +435,7 @@ bindgen_wrapper_generate()
 	grep '^\tpub static mut ' "$outputFilePath".withoutConstantsWithoutTypes | sed -e 's/^\t//g' | sort >"$outputFolderPath"/.statics.rs
 	grep -v '^\tpub static mut ' "$outputFilePath".withoutConstantsWithoutTypes >"$outputFilePath".withoutConstantsWithoutTypesWithoutStatics
 	
+	set -x
 	local attributes=''
 	local namedFile=''
 	local name=''
