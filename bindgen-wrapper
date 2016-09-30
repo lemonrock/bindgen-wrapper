@@ -421,15 +421,12 @@ bindgen_wrapper_generate()
 	cat "$outputFilePath".afterGeneration | bindgen_wrapper_rustfmt >"$outputFilePath".rustfmt
 	
 	cat "$outputFilePath".rustfmt | postprocess_after_rustfmt >"$outputFilePath".afterRustfmt
-	
-	# {
-	# 	cat "$outputFilePath".prepend
-	# 	cat "$outputFilePath".afterRustfmt
-	# } >"$outputFilePath"
-	
+		
 	grep -v '^pub const ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstants
 
 	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
+	
+	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs
 	
 	local namedFile=''
 	local name=''	
@@ -467,8 +464,8 @@ ${line}"
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
 						echo "Type: '$name'"
-						printf 'include!("%s");\n' "$name".rs >>"$outputFolderPath"/types
-						namedFile="$outputFolderPath"/"$name".rs
+						printf 'include!("types/%s");\n' "$name".rs >>"$outputFolderPath"/types
+						namedFile="$outputFolderPath"/types/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
 							printf '%s\n' "$line"
@@ -477,8 +474,8 @@ ${line}"
 			
 					'pub enum '*)
 						name="${line#pub enum }"
-						printf 'include!("%s");\n' "$name".rs >>"$outputFolderPath"/enums
-						namedFile="$outputFolderPath"/"$name".rs
+						printf 'include!("enums/%s");\n' "$name".rs >>"$outputFolderPath"/enums
+						namedFile="$outputFolderPath"/enums/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
 							printf '%s\n' "$attributes"
@@ -490,8 +487,8 @@ ${line}"
 
 					'pub struct '*)
 						name="${line#pub struct }"
-						printf 'include!("%s");\n' "$name".rs >>"$outputFolderPath"/structs
-						namedFile="$outputFolderPath"/"$name".rs
+						printf 'include!("structs/%s");\n' "$name".rs >>"$outputFolderPath"/structs
+						namedFile="$outputFolderPath"/structs/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
 							printf '%s\n' "$attributes"
