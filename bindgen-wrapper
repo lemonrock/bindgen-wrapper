@@ -433,6 +433,7 @@ bindgen_wrapper_generate()
 	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
 	
 	set -x
+	local namesFilePath="$outputFilePath".names
 	local attributes=''
 	local namedFile=''
 	local name=''
@@ -461,7 +462,8 @@ ${line}"
 					;;
 			
 					'pub struct '*)
-						name="${x#pub struct }"
+						name="${line#pub struct }"
+						printf 'include!(%s);\n' "$name".rs >>"$namesFilePath"
 						namedFile="$outputFolderPath"/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -473,7 +475,8 @@ ${line}"
 					;;
 			
 					'pub enum '*)
-						name="${x#pub enum }"
+						name="${line#pub enum }"
+						printf 'include!(%s);\n' "$name".rs >>"$namesFilePath"
 						{
 							cat "$configurationFolderPath"/preamble.rs
 							printf '%s\n' "$attributes"
