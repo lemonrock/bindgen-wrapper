@@ -409,24 +409,21 @@ bindgen_wrapper_generate()
 	bindgen_wrapper_installHeadersAndCopyOverrides
 	
 	bindgen_wrapper_createOutputFolder
-
-	bindgen_wrapper_prepend >"$outputFilePath".prepend
 	
-	bindgen_wrapper_rawGeneration >"$outputFilePath".rawGeneration
+	bindgen_wrapper_rawGeneration >"$outputFolderPath"/.rawGeneration
 	
-	cat "$outputFilePath".rawGeneration | bindgen_wrapper_cleanedGeneration >"$outputFilePath".cleanedGeneration
+	cat "$outputFolderPath"/.rawGeneration | bindgen_wrapper_cleanedGeneration >"$outputFolderPath"/.cleanedGeneration
 	
-	cat "$outputFilePath".cleanedGeneration | postprocess_after_generation >"$outputFilePath".afterGeneration
+	cat "$outputFolderPath"/.cleanedGeneration | postprocess_after_generation >"$outputFolderPath"/.afterGeneration
 	
-	cat "$outputFilePath".afterGeneration | bindgen_wrapper_rustfmt >"$outputFilePath".rustfmt
+	cat "$outputFolderPath"/.afterGeneration | bindgen_wrapper_rustfmt >"$outputFolderPath"/.rustfmt
 	
-	cat "$outputFilePath".rustfmt | postprocess_after_rustfmt >"$outputFilePath".afterRustfmt
+	cat "$outputFolderPath"/.rustfmt | postprocess_after_rustfmt >"$outputFolderPath"/.afterRustfmt
 		
-	grep -v '^pub const ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstants
+	grep -v '^pub const ' "$outputFolderPath"/.afterRustfmt >"$outputFolderPath"/.withoutConstants
 
-	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
+	grep -v '^pub type ' "$outputFolderPath"/.withoutConstants >"$outputFolderPath"/.withoutConstantsWithoutTypes
 	
-	set -x
 	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs
 	
 	local namedFile=''
@@ -582,7 +579,7 @@ ${line}"
 			
 		esac
 		
-	done <"$outputFilePath".afterRustfmt
+	done <"$outputFolderPath"/.afterRustfmt
 	
 	{
 		bindgen_wrapper_prepend
@@ -615,6 +612,8 @@ ${line}"
 		sort "$outputFolderPath"/structs.tmp
 		rm -rf "$outputFolderPath"/structs.tmp
 	} >"$outputFilePath"
+	
+	rm -rf "$outputFolderPath"/.cleanedGeneration "$outputFolderPath"/.afterGeneration "$outputFolderPath"/.rustfmt "$outputFolderPath"/.afterRustfmt "$outputFolderPath"/.withoutConstants "$outputFolderPath"/.withoutConstantsWithoutTypes
 }
 
 bindgen_wrapper_buildCheck()
