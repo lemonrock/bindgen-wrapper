@@ -432,23 +432,7 @@ bindgen_wrapper_generate()
 	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
 	
 	local namedFile=''
-	local name=''
-	
-	local field_pub
-	local field_type
-	local remaining
-	grep '^pub type ' "$outputFilePath".withoutConstants | while IFS='' read -r field_pub field_type name remaining
-	do
-		namedFile="$outputFolderPath"/"$name".rs
-		{
-			cat "$configurationFolderPath"/preamble.rs
-			printf 'pub type %s %s\n' "$name" "$remaining"
-		} >"$namedFile"
-		
-		printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/types
-	done
-	
-	
+	local name=''	
 	local attributes=''
 	local mode='next'
 	local externC='ExpectingPubStaticMut'
