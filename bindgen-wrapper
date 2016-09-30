@@ -587,13 +587,13 @@ ${line}"
 		bindgen_wrapper_prepend
 	
 		printf '\n\n// Constants\n'
+		printf 'include!("constants.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
 		sort "$temporaryFolderPath"/constants >>"$outputFolderPath"/constants.rs
-		printf '#include!("constants.rs");\n'
 		rm -rf "$temporaryFolderPath"/constants
 	
 		printf '\n\n// Statics\n'
-		printf '#include!("statics.rs");\n'
+		printf 'include!("statics.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
 		printf 'extern "C"\n{\n' >>"$outputFolderPath"/statics.rs
 		sort "$temporaryFolderPath"/statics >>"$outputFolderPath"/statics.rs
@@ -601,7 +601,7 @@ ${line}"
 		rm -rf "$temporaryFolderPath"/statics
 	
 		printf '\n\n// Functions\n'
-		printf '#include!("functions.rs");\n'
+		printf 'include!("functions.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
 		printf 'extern "C"\n{\n' >>"$outputFolderPath"/functions.rs
 		sort "$temporaryFolderPath"/functions >>"$outputFolderPath"/functions.rs
