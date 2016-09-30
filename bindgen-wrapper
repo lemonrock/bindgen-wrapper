@@ -364,13 +364,13 @@ bindgen_wrapper_rawGeneration()
 	
 	cd - 1>/dev/null 2>/dev/null
 	
-	local newline='\'$'\n'
-	
 	bindgen_wrapper_bindgen "$@"
 }
 
 bindgen_wrapper_cleanedGeneration()
 {
+	local newline='\'$'\n'
+	
 	# sed line explanations:-
 	# 1 - remove bindgen comment
 	# 2 - remove multiline allow that (a) rustfmt can't format and (b) is no longer the first item in the file because of the use statements above and (c) is overly broad
