@@ -476,15 +476,14 @@ ${line}"
 					'pub const '*)
 						local stripPrefix="${line#pub const }"
 						name="${stripPrefix%:*}"
-						echo "$name" 1>&2
 						printf '%s\n' "$line" >>"$outputFolderPath"/constants
 					;;
 					
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
-						echo "$name" 1>&2
-						printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/types
+						echo "Type: '$name'"
+						printf 'include!("%s");\n' "$name".rs >>"$outputFolderPath"/types
 						namedFile="$outputFolderPath"/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -494,8 +493,7 @@ ${line}"
 			
 					'pub enum '*)
 						name="${line#pub enum }"
-						echo "$name" 1>&2
-						printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/enums
+						printf 'include!("%s");\n' "$name".rs >>"$outputFolderPath"/enums
 						namedFile="$outputFolderPath"/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -508,8 +506,7 @@ ${line}"
 
 					'pub struct '*)
 						name="${line#pub struct }"
-						echo "$name" 1>&2
-						printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/structs
+						printf 'include!("%s");\n' "$name".rs >>"$outputFolderPath"/structs
 						namedFile="$outputFolderPath"/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
