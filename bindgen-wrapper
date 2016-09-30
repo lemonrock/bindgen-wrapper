@@ -432,9 +432,6 @@ bindgen_wrapper_generate()
 	grep '^pub type ' "$outputFilePath".withoutConstants | sort >"$outputFolderPath"/.types.rs
 	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
 	
-	grep '^\tpub static mut ' "$outputFilePath".withoutConstantsWithoutTypes | sed -e 's/^\t//g' | sort >"$outputFolderPath"/.statics.rs
-	grep -v '^\tpub static mut ' "$outputFilePath".withoutConstantsWithoutTypes >"$outputFilePath".withoutConstantsWithoutTypesWithoutStatics
-	
 	set -x
 	local attributes=''
 	local namedFile=''
@@ -573,7 +570,7 @@ ${line}"
 			
 		esac
 		
-	done >"$outputFilePath".withoutConstantsWithoutTypes
+	done <"$outputFilePath".withoutConstantsWithoutTypes
 	
 	
 	#
