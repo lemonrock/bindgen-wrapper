@@ -482,7 +482,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local macosXHomebrewPackageNames
 	local alpineLinuxPackageNames
 	local outputFolderPath="$homeFolder"/src
-	local outputFilePath="$outputFilePath"/lib.rs
+	local outputFilePath="$outputFolderPath"/lib.rs
 	local headersFolderPath=''
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
