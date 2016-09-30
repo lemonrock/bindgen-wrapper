@@ -458,14 +458,14 @@ ${line}"
 					'pub const '*)
 						local stripPrefix="${line#pub const }"
 						name="${stripPrefix%:*}"
-						printf '%s\n' "$line" >>"$outputFolderPath"/constants
+						printf '%s\n' "$line" >>"$outputFolderPath"/constants.tmp
 					;;
 					
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
 						echo "Type: '$name'"
-						printf 'include!("types/%s");\n' "$name".rs >>"$outputFolderPath"/types
+						printf 'include!("types/%s");\n' "$name".rs >>"$outputFolderPath"/types.tmp
 						namedFile="$outputFolderPath"/types/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -475,7 +475,7 @@ ${line}"
 			
 					'pub enum '*)
 						name="${line#pub enum }"
-						printf 'include!("enums/%s");\n' "$name".rs >>"$outputFolderPath"/enums
+						printf 'include!("enums/%s");\n' "$name".rs >>"$outputFolderPath"/enums.tmp
 						namedFile="$outputFolderPath"/enums/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -488,7 +488,7 @@ ${line}"
 
 					'pub struct '*)
 						name="${line#pub struct }"
-						printf 'include!("structs/%s");\n' "$name".rs >>"$outputFolderPath"/structs
+						printf 'include!("structs/%s");\n' "$name".rs >>"$outputFolderPath"/structs.tmp
 						namedFile="$outputFolderPath"/structs/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -557,7 +557,7 @@ ${line}"
 					mode=next
 					externC=ExpectingPubFn
 				else
-					printf '%s\n' "$line" >>"$outputFolderPath"/statics
+					printf '%s\n' "$line" >>"$outputFolderPath"/statics.tmp
 				fi
 			;;
 			
@@ -572,7 +572,7 @@ ${line}"
 				if [ "$line" = '}' ]; then
 					mode=next
 				else
-					printf '%s\n' "$line" >>"$outputFolderPath"/functions
+					printf '%s\n' "$line" >>"$outputFolderPath"/functions.tmp
 				fi
 			;;
 			
@@ -588,32 +588,32 @@ ${line}"
 		bindgen_wrapper_prepend
 	
 		printf '\n\n// Constants\n'
-		sort "$outputFolderPath"/constants
-		rm -rf "$outputFolderPath"/constants
+		sort "$outputFolderPath"/constants.tmp
+		rm -rf "$outputFolderPath"/constants.tmp
 	
 		printf '\n\n// Statics\n'
 		printf 'extern "C"\n{\n'
-		sort "$outputFolderPath"/statics
-		rm -rf "$outputFolderPath"/statics
+		sort "$outputFolderPath"/statics.tmp
+		rm -rf "$outputFolderPath"/statics.tmp
 		printf '}\n'
 	
 		printf '\n\n// Functions\n'
 		printf 'extern "C"\n{\n'
-		sort "$outputFolderPath"/functions
-		rm -rf "$outputFolderPath"/functions
+		sort "$outputFolderPath"/functions.tmp
+		rm -rf "$outputFolderPath"/functions.tmp
 		printf '}\n'
 	
 		printf '\n\n// Types\n'
-		sort "$outputFolderPath"/types
-		rm -rf "$outputFolderPath"/types
+		sort "$outputFolderPath"/types.tmp
+		rm -rf "$outputFolderPath"/types.tmp
 	
 		printf '\n\n// Enums\n'
-		sort "$outputFolderPath"/enums
-		rm -rf "$outputFolderPath"/enums
+		sort "$outputFolderPath"/enums.tmp
+		rm -rf "$outputFolderPath"/enums.tmp
 	
 		printf '\n\n// Structs\n'
-		sort "$outputFolderPath"/structs
-		rm -rf "$outputFolderPath"/structs
+		sort "$outputFolderPath"/structs.tmp
+		rm -rf "$outputFolderPath"/structs.tmp
 	} >"$outputFilePath"
 }
 
