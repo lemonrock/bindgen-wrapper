@@ -577,7 +577,7 @@ ${line}"
 							bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
 						fi
 						
-						case "$functionName" in
+						case "$staticName" in
 							
 							"$prefix"*)
 								chosenFileBaseName="$fileBaseName"
