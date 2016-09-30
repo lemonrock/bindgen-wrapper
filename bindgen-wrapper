@@ -464,7 +464,6 @@ ${line}"
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
-						echo "Type: '$name'"
 						printf 'include!("types/%s");\n' "$name".rs >>"$temporaryFolderPath"/types
 						namedFile="$outputFolderPath"/types/"$name".rs
 						{
