@@ -574,7 +574,14 @@ ${line}"
 				if [ "$line" = '}' ]; then
 					mode=next
 				else
-					echo "Function:$line" 1>&2
+					local field_pub
+					local field_fn
+					local field_name
+					local remaining
+					IFS=$'\t'" (" read -r field_pub field_fn field_name remaining <<-EOF
+						${line}
+					EOF
+					echo "Function:$field_name" 1>&2
 					
 					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions
 				fi
