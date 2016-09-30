@@ -431,7 +431,7 @@ bindgen_wrapper_generate()
 	grep -v '^pub type ' "$temporaryFolderPath"/withoutConstants >"$temporaryFolderPath"/withoutConstantsWithoutTypes
 	
 	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs "$outputFolderPath"/functions "$temporaryFolderPath"/functions
-	set -x
+	
 	local namedFile=''
 	local name=''	
 	local attributes=''
@@ -587,6 +587,10 @@ ${line}"
 					local fileBaseName
 					while IFS=' ' read -r prefix fileBaseName
 					do
+						if [ -z "$fileBaseName" ]; then
+							bindgen_wrapper_fail "prefix '$prefix' has no fileBaseName"
+						fi
+						
 						case "$functionName" in
 							
 							"$prefix"*)
