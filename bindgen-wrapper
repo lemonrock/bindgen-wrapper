@@ -572,33 +572,6 @@ ${line}"
 			
 		esac
 		
-		case "$line" in
-			
-			'')
-				continue
-			;;
-			
-			'#'*)
-				printf '%s\n' >>"$workingFile"
-			;;
-			
-			
-			'impl '*)
-			
-				case "$mode" in
-					
-					next)
-						bindgen_wrapper_fail 'impl when looking for next'
-					;;
-					
-				esac
-			;;
-			
-			'extern '
-			
-		esac
-		
-		
 	done >"$outputFilePath".withoutConstantsWithoutTypes
 	
 	
