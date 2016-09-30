@@ -574,6 +574,8 @@ ${line}"
 				if [ "$line" = '}' ]; then
 					mode=next
 				else
+					echo "Function:$line" 1>&2
+					
 					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions
 				fi
 			;;
