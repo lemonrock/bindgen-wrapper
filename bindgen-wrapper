@@ -453,15 +453,15 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
 	{
-		:
+		cat
 	}
 	postprocess_after_generation()
 	{
-		:
+		cat
 	}
 	postprocess_after_rustfmt()
 	{
-		:
+		cat
 	}
 	. "$configurationFolderPath"/configuration.sh
 	
