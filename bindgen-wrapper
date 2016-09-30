@@ -585,10 +585,8 @@ ${line}"
 					local chosenFileBaseName='miscellany'
 					local prefix
 					local fileBaseName
-					while true
+					while IFS=' ' read -r prefix fileBaseName
 					do
-						IFS=' ' read -r prefix fileBaseName
-						
 						case "$functionName" in
 							
 							"$prefix"*)
@@ -599,7 +597,6 @@ ${line}"
 						esac
 						
 					done <"$configurationFolderPath"/function-mapping
-					
 					
 					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
 				fi
