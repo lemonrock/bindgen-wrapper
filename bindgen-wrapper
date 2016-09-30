@@ -652,6 +652,8 @@ ${line}"
 			do
 				set -f
 				
+				cat "$functionsSetFile" 1>&2
+				
 				printf 'include!("functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
 				
 				{
