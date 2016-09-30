@@ -615,8 +615,6 @@ ${line}"
 		sort "$temporaryFolderPath"/structs
 		rm -rf "$temporaryFolderPath"/structs
 	} >"$outputFilePath"
-	
-	rm -rf "$temporaryFolderPath"/cleanedGeneration "$temporaryFolderPath"/afterGeneration "$temporaryFolderPath"/rustfmt "$temporaryFolderPath"/afterRustfmt "$temporaryFolderPath"/withoutConstants "$temporaryFolderPath"/withoutConstantsWithoutTypes
 }
 
 bindgen_wrapper_buildCheck()
