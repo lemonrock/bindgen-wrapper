@@ -588,14 +588,14 @@ ${line}"
 	
 	{
 		bindgen_wrapper_prepend
+		
+		printf '\n'
 	
-		printf '\n\n// Constants\n'
 		printf 'include!("constants.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
 		sort "$temporaryFolderPath"/constants >>"$outputFolderPath"/constants.rs
 		rm -rf "$temporaryFolderPath"/constants
 	
-		printf '\n\n// Statics\n'
 		printf 'include!("statics.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
 		printf 'extern "C"\n{\n' >>"$outputFolderPath"/statics.rs
@@ -603,7 +603,6 @@ ${line}"
 		printf '}\n' >>"$outputFolderPath"/statics.rs
 		rm -rf "$temporaryFolderPath"/statics
 	
-		printf '\n\n// Functions\n'
 		printf 'include!("functions.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
 		printf 'extern "C"\n{\n' >>"$outputFolderPath"/functions.rs
@@ -611,19 +610,16 @@ ${line}"
 		printf '}\n' >>"$outputFolderPath"/functions.rs
 		rm -rf "$temporaryFolderPath"/functions
 	
-		printf '\n\n// Types\n'
 		printf 'include!("types.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
 		sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
 		rm -rf "$temporaryFolderPath"/types
 	
-		printf '\n\n// Enums\n'
 		printf 'include!("enums.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
 		sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
 		rm -rf "$temporaryFolderPath"/enums
-	
-		printf '\n\n// Structs\n'
+		
 		printf 'include!("structs.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
 		sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
