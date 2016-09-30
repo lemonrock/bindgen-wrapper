@@ -652,14 +652,12 @@ ${line}"
 			do
 				set -f
 				
-				cat "$functionsSetFile" 1>&2
-				
 				printf 'include!("functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
 				
 				{
 					cat "$configurationFolderPath"/preamble.rs
 					printf 'extern "C"\n{\n'
-					LC_ALL=en_US.UTF-8 sort "$functionsSetFile" >"$outputFolderPath"/functions/"$functionsSetFile".rs
+					LC_ALL=en_US.UTF-8 sort "$functionsSetFile"
 					printf '}\n'
 				} >"$outputFolderPath"/functions/"$functionsSetFile".rs
 			done
