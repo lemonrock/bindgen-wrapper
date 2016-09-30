@@ -218,7 +218,6 @@ bindgen_wrapper_bindgen()
 {
 	# clangAdditionalArguments deliberately has quotes ommitted
 	set -- "$@" \
-		--builtins \
 		--convert-macros \
 		--macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong \
 		--use-core \
