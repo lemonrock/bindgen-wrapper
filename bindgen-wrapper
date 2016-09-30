@@ -652,7 +652,7 @@ ${line}"
 			do
 				set -f
 				
-				printf 'include!("%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
+				printf 'include!("functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
 				
 				{
 					cat "$configurationFolderPath"/preamble.rs
