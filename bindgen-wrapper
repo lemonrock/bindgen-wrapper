@@ -347,11 +347,18 @@ bindgen_wrapper_generate()
 	bindgen_wrapper_installHeadersAndCopyOverrides
 	
 	bindgen_wrapper_createOutputFolder
+
+	bindgen_wrapper_prepend >"$outputFilePath".prepend
 	
-	{
-		bindgen_wrapper_prepend
-		bindgen_wrapper_rawGeneration | postprocess_after_generation | bindgen_wrapper_rustfmt | postprocess_after_rustfmt
-	} >"$outputFilePath"
+	bindgen_wrapper_rawGeneration >"$outputFilePath".rawGeneration
+	
+	cat "$outputFilePath".rawGeneration | postprocess_after_generation >"$outputFilePath".afterGeneration
+	
+	cat "$outputFilePath".afterGeneration | bindgen_wrapper_rustfmt >"$outputFilePath".rustfmt
+	
+	cat "$outputFilePath".rustfmt | postprocess_after_rustfmt >"$outputFilePath"
+	
+	rm "$outputFilePath".prepend "$outputFilePath".rawGeneration "$outputFilePath".rustfmt
 }
 
 bindgen_wrapper_rawGeneration()
