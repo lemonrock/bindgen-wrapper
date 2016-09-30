@@ -426,7 +426,29 @@ bindgen_wrapper_generate()
 		cat "$outputFilePath".afterRustfmt
 	} >"$outputFilePath"
 	
-	#rm "$outputFilePath".prepend "$outputFilePath".rawGeneration "$outputFilePath".cleanedGeneration "$outputFilePath".afterGeneration "$outputFilePath".rustfmt "$outputFilePath".afterRustfmt
+	# grep '^pub const ' "$outputFilePath".afterRustfmt | sort >"$outputFolderPath"/lib.constants.rs
+	# grep -v '^pub const ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstants
+	# printf ''
+	#
+	# grep '^pub type ' "$outputFilePath".withoutConstants | sort >"$outputFolderPath"/lib.types.rs
+	# grep -v '^pub type ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstantsWithoutTypes
+	#
+	# local field0_pub
+	# local field1_type
+	# local field2_name
+	# local remainingFields
+	# while IFS=' ' read -r field0_pub field1_type field2_name remainingFields
+	# do
+	# 	{
+	# 		cat "$configurationFolderPath"/preamble.rs
+	# 		printf '%s %s %s %s\n' "$field0_pub" "$field1_type" "$field2_name" "$remainingFields"
+	# 	} >"$outputFolderPath"/"$field2_name".rs
+	# 	printf '#include!("%s.rs")\n' "$field2_name" >>"$outputFolderPath"/lib.new.rs
+	# done <"$outputFolderPath"/lib.types.rs
+	#
+	#
+	#
+	# rm "$outputFilePath".prepend "$outputFilePath".rawGeneration "$outputFilePath".cleanedGeneration "$outputFilePath".afterGeneration "$outputFilePath".rustfmt "$outputFilePath".afterRustfmt
 }
 
 bindgen_wrapper_buildCheck()
@@ -459,7 +481,8 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local link
 	local macosXHomebrewPackageNames
 	local alpineLinuxPackageNames
-	local outputFilePath="$homeFolder"/src/lib.rs
+	local outputFolderPath="$homeFolder"/src
+	local outputFilePath="$outputFilePath"/lib.rs
 	local headersFolderPath=''
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
@@ -501,7 +524,7 @@ bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder()
 
 bindgen_wrapper_main()
 {
-	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for basic operation" uname rm mkdir cat sed
+	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for basic operation" uname rm mkdir cat sed sort grep
 	
 	bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder
 	
