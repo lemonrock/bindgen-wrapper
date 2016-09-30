@@ -570,6 +570,7 @@ ${line}"
 			closeBracePubStaticMut)
 				if [ "$line" = '}' ]; then
 					mode=next
+					externC=ExpectingPubFn
 				else
 					printf '%s\n' "$line" >>"$outputFolderPath"/statics
 				fi
