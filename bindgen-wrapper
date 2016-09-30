@@ -247,6 +247,10 @@ bindgen_wrapper_installPrerequisites()
 		;;
 		
 		Linux)
+			if [ -d ~/.cargo/bin ]; then
+				export PATH=~/.cargo/bin:"$PATH"
+			fi
+			
 			if bindgen_wrapper_isAlpineLinuxIfIsLinux; then
 				bindgen_wrapper_alpineLinuxInstall llvm
 				bindgen_wrapper_alpineLinuxInstall llvm-static
@@ -266,23 +270,34 @@ bindgen_wrapper_installPrerequisites()
 				packageInstallFunction=bindgen_wrapper_alpineLinuxInstall
 				packagesToInstall="$alpineLinuxPackageNames"
 			else
+				local hasRustC
 				if command -v rustc 1>/dev/null 2>/dev/null; then
-					export PATH=~/.cargo/bin:"$PATH"
+					hasRustC=true
 				else
-					if [ -x ~/.cargo/bin/rustc ]; then
-						export PATH=~/.cargo/bin:"$PATH"
-					else
-						if command -v cargo 1>/dev/null 2>/dev/null; then
-							bindgen_wrapper_fail "rustc is in the PATH but not cargo; this is an unsupported combination"
-						fi
-
-						bindgen_wrapper_ensureRequiredBinariesArePresent "Required to install rust and cargo using rustup" curl sh
-						curl https://sh.rustup.rs -sSf | sh
-						export PATH=~/.cargo/bin:"$PATH"
-					fi
+					hasRustC=false
 				fi
 				
-				bindgen_wrapper_fail "Only Alpine Linux systems using the 'apk' package manager are currently supported; we need to install gcc and clang"
+				local hasCargo
+				if command -v cargo 1>/dev/null 2>/dev/null; then
+					hasCargo=true
+				else
+					hasCargo=false
+				fi
+				
+				if $hasRustC; then
+					if $hasCargo; then
+						:
+					else
+						bindgen_wrapper_fail "rustc is in the PATH but not cargo; this is an unsupported combination"
+					fi
+				else
+					if $hasCargo; then
+						bindgen_wrapper_fail "cargo is in the PATH but not rustc; this is an unsupported combination"
+					else
+						bindgen_wrapper_ensureRequiredBinariesArePresent "Required to install rust and cargo using rustup" curl sh
+						curl https://sh.rustup.rs -sSf | sh
+					fi
+				fi
 			fi
 		;;
 		
