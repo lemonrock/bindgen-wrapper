@@ -430,7 +430,7 @@ bindgen_wrapper_generate()
 
 	grep -v '^pub type ' "$temporaryFolderPath"/withoutConstants >"$temporaryFolderPath"/withoutConstantsWithoutTypes
 	
-	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs
+	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs "$outputFolderPath"/functions "$temporaryFolderPath"/functions
 	
 	local namedFile=''
 	local name=''	
@@ -576,14 +576,32 @@ ${line}"
 				else
 					local field_pub
 					local field_fn
-					local field_name
+					local functionName
 					local remaining
-					IFS=$'\t'" (" read -r field_pub field_fn field_name remaining <<-EOF
+					IFS=$'\t'" (" read -r field_pub field_fn functionName remaining <<-EOF
 						${line}
 					EOF
-					echo "Function:$field_name" 1>&2
 					
-					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions
+					local chosenFileBaseName='miscellany'
+					local prefix
+					local fileBaseName
+					while true
+					do
+						IFS=' ' read -r prefix fileBaseName
+						
+						case "$functionName" in
+							
+							"$prefix"*)
+								chosenFileBaseName="$fileBaseName"
+								break
+							;;
+							
+						esac
+						
+					done <"$configurationFolderPath"/function-mapping
+					
+					
+					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
 				fi
 			;;
 			
@@ -602,37 +620,55 @@ ${line}"
 	
 		printf 'include!("constants.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
-		sort "$temporaryFolderPath"/constants >>"$outputFolderPath"/constants.rs
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constants >>"$outputFolderPath"/constants.rs
 		rm -rf "$temporaryFolderPath"/constants
 	
 		printf 'include!("statics.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
 		printf 'extern "C"\n{\n' >>"$outputFolderPath"/statics.rs
-		sort "$temporaryFolderPath"/statics >>"$outputFolderPath"/statics.rs
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/statics >>"$outputFolderPath"/statics.rs
 		printf '}\n' >>"$outputFolderPath"/statics.rs
 		rm -rf "$temporaryFolderPath"/statics
-	
-		printf 'include!("functions.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
-		printf 'extern "C"\n{\n' >>"$outputFolderPath"/functions.rs
-		sort "$temporaryFolderPath"/functions >>"$outputFolderPath"/functions.rs
-		printf '}\n' >>"$outputFolderPath"/functions.rs
-		rm -rf "$temporaryFolderPath"/functions
-	
+			
 		printf 'include!("types.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
-		sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
 		rm -rf "$temporaryFolderPath"/types
 	
 		printf 'include!("enums.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
-		sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
 		rm -rf "$temporaryFolderPath"/enums
 		
 		printf 'include!("structs.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
-		sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
 		rm -rf "$temporaryFolderPath"/structs
+		
+		printf 'include!("functions.rs");\n'
+		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
+		cd "$temporaryFolderPath"/functions 1>/dev/null 2>/dev/null
+			
+			set +f
+			local functionsSetFile
+			for functionsSetFile in *
+			do
+				set -f
+				
+				printf 'include!("%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
+				{
+					cat "$configurationFolderPath"/preamble.rs
+					printf 'extern "C"\n{\n'
+					LC_ALL=en_US.UTF-8 sort "$functionsSetFile" >"$outputFolderPath"/functions/"$functionsSetFile".rs
+					printf '}\n'
+				} >"$outputFolderPath"/functions/"$functionsSetFile".rs
+			done
+			set -f
+		
+		cd - 1>/dev/null 2>/dev/null
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/functions >>"$outputFolderPath"/functions.rs
+		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
+		
 	} >"$outputFilePath"
 }
 
