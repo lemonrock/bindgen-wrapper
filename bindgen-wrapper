@@ -488,6 +488,7 @@ ${line}"
 					
 					'impl '*)
 						printf '%s\n' "$line" >>"$namedFile"
+						mode=openBrace
 					;;
 					
 					'extern "C"')
