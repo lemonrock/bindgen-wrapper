@@ -217,7 +217,7 @@ bindgen_wrapper_addTacFallbackIfNotPresent()
 bindgen_wrapper_bindgen()
 {
 	# clangAdditionalArguments deliberately has quotes ommitted
-	set -- "$@" --convert-macros --macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong --use-core --ctypes-prefix=XXX "$temporaryIncludeFolder"/"$rootIncludeFileName" -- -I"$temporaryIncludeFolder" $clangAdditionalArguments
+	set -- "$@" --builtins --convert-macros --macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong --use-core --ctypes-prefix=XXX "$temporaryIncludeFolder"/"$rootIncludeFileName" -- -I"$temporaryIncludeFolder" $clangAdditionalArguments
 	case "$platform" in
 		
 		Darwin)
