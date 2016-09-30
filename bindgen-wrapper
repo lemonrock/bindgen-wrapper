@@ -434,7 +434,6 @@ bindgen_wrapper_generate()
 	local namedFile=''
 	local name=''
 	
-	set -x
 	local field_pub
 	local field_type
 	local remaining
@@ -475,11 +474,16 @@ ${line}"
 					;;
 					
 					'pub const '*)
+						local stripPrefix="${line#pub const }"
+						name="${stripPrefix%:*}"
+						echo "$name" 1>&2
 						printf '%s\n' "$line" >>"$outputFolderPath"/constants
 					;;
 					
 					'pub type '*)
-						name="${line#pub type }"
+						local stripPrefix="${line#pub type }"
+						name="${stripPrefix% =*}"
+						echo "$name" 1>&2
 						printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/types
 						namedFile="$outputFolderPath"/"$name".rs
 						{
@@ -490,6 +494,7 @@ ${line}"
 			
 					'pub enum '*)
 						name="${line#pub enum }"
+						echo "$name" 1>&2
 						printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/enums
 						namedFile="$outputFolderPath"/"$name".rs
 						{
@@ -503,6 +508,7 @@ ${line}"
 
 					'pub struct '*)
 						name="${line#pub struct }"
+						echo "$name" 1>&2
 						printf 'include!(%s);\n' "$name".rs >>"$outputFolderPath"/structs
 						namedFile="$outputFolderPath"/"$name".rs
 						{
@@ -599,33 +605,37 @@ ${line}"
 		
 	done <"$outputFilePath".afterRustfmt
 	
-	local libraryFilePath="$outputFilePath"
+	{
+		bindgen_wrapper_prepend
 	
-	bindgen_wrapper_prepend >"$libraryFilePath"
+		printf '\n\n// Constants\n'
+		sort "$outputFolderPath"/constants
+		rm -rf "$outputFolderPath"/constants
 	
-	printf '\n\n// Constants\n' >>"$libraryFilePath"
-	sort "$outputFolderPath"/constants >>"$libraryFilePath"
-	rm -rf "$outputFolderPath"/constants
+		printf '\n\n// Statics\n'
+		printf 'extern "C"\n{\n'
+		sort "$outputFolderPath"/statics
+		rm -rf "$outputFolderPath"/statics
+		printf '}\n'
 	
-	printf '\n\n// Statics\n' >>"$libraryFilePath"
-	sort "$outputFolderPath"/statics >>"$libraryFilePath"
-	rm -rf "$outputFolderPath"/statics
+		printf '\n\n// Functions\n'
+		printf 'extern "C"\n{\n'
+		sort "$outputFolderPath"/functions
+		rm -rf "$outputFolderPath"/functions
+		printf '}\n'
 	
-	printf '\n\n// Functions\n' >>"$libraryFilePath"
-	sort "$outputFolderPath"/functions >>"$libraryFilePath"
-	rm -rf "$outputFolderPath"/functions
+		printf '\n\n// Types\n'
+		sort "$outputFolderPath"/types
+		rm -rf "$outputFolderPath"/types
 	
-	printf '\n\n// Types\n' >>"$libraryFilePath"
-	sort "$outputFolderPath"/types >>"$libraryFilePath"
-	rm -rf "$outputFolderPath"/types
+		printf '\n\n// Enums\n'
+		sort "$outputFolderPath"/enums
+		rm -rf "$outputFolderPath"/enums
 	
-	printf '\n\n// Enums\n' >>"$libraryFilePath"
-	sort "$outputFolderPath"/enums >>"$libraryFilePath"
-	rm -rf "$outputFolderPath"/enums
-	
-	printf '\n\n// Structs\n' >>"$libraryFilePath"
-	sort "$outputFolderPath"/structs >>"$libraryFilePath"
-	rm -rf "$outputFolderPath"/structs
+		printf '\n\n// Structs\n'
+		sort "$outputFolderPath"/structs
+		rm -rf "$outputFolderPath"/structs
+	} >"$outputFilePath"
 }
 
 bindgen_wrapper_buildCheck()
