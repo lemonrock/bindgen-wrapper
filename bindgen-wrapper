@@ -333,17 +333,20 @@ bindgen_wrapper_prepend()
 		
 	local IFS=' '
 	local linkValue
+	local hasLinks=false
 	# quotes deliberately ommitted
 	for linkValue in $link
 	do
+		hasLinks=true
+		printf '#[link(name = "%s")]\n' "$linkValue"
+	done
+	if $hasLinks; then
 		cat <<-EOF
-			
-			#[link(name = "${linkValue}")]
 			extern "C"
 			{
 			}
 		EOF
-	done
+	fi
 }
 
 bindgen_wrapper_rawGeneration()
