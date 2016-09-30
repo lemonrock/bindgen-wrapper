@@ -426,12 +426,15 @@ bindgen_wrapper_generate()
 		cat "$outputFilePath".afterRustfmt
 	} >"$outputFilePath"
 	
-	# grep '^pub const ' "$outputFilePath".afterRustfmt | sort >"$outputFolderPath"/lib.constants.rs
-	# grep -v '^pub const ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstants
-	# printf ''
-	#
-	# grep '^pub type ' "$outputFilePath".withoutConstants | sort >"$outputFolderPath"/lib.types.rs
-	# grep -v '^pub type ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstantsWithoutTypes
+	grep '^pub const ' "$outputFilePath".afterRustfmt | sort >"$outputFolderPath"/.constants.rs
+	grep -v '^pub const ' "$outputFilePath".afterRustfmt >"$outputFilePath".withoutConstants
+
+	grep '^pub type ' "$outputFilePath".withoutConstants | sort >"$outputFolderPath"/.types.rs
+	grep -v '^pub type ' "$outputFilePath".withoutConstants >"$outputFilePath".withoutConstantsWithoutTypes
+	
+	
+	
+	
 	#
 	# local field0_pub
 	# local field1_type
