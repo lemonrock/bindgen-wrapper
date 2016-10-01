@@ -593,16 +593,16 @@ ${line}"
 						${line}
 					EOF
 				
-					local chosenFileBaseName='miscellany'
+					local chosenFileBaseName='unnamed-enum'
 					local prefix
 					local fileBaseName
 					while IFS=' ' read -r prefix fileBaseName
 					do
 						if [ -z "$fileBaseName" ]; then
-							bindgen_wrapper_fail "constant.mapping prefix '$prefix' has no fileBaseName"
+							bindgen_wrapper_fail "unnamed-enum.mapping prefix '$prefix' has no fileBaseName"
 						fi
 					
-						case "$constantName" in
+						case "$unnamedEnumName" in
 						
 							"$prefix"*)
 								chosenFileBaseName="$fileBaseName"
@@ -611,7 +611,7 @@ ${line}"
 						
 						esac
 					
-					done <"$configurationFolderPath"/constant.mapping
+					done <"$configurationFolderPath"/unnamed-enum.mapping
 				
 					printf 'pub const %s: %s = %s;\n' "$unnamedEnumName" 'u32' "$unnamedEnumValue" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
 				fi
