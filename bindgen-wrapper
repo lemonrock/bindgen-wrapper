@@ -749,7 +749,7 @@ ${line}"
 		set -f
 		
 		sed -i \
-			-e 's/\tfn clone(&self) -> Self/\t#[inline(always)]\n\tfn clone(&self) -> Self/g' \
+			-e 's/\tfn clone(\&self) -> Self/\t#[inline(always)]\n\tfn clone(\&self) -> Self/g' \
 			-e 's/\tfn default() -> Self/\t#[inline(always)]\n\tfn default() -> Self/g' \
 			"$structFile"
 	done
