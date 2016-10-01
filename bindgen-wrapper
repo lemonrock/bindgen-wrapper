@@ -419,7 +419,7 @@ bindgen_wrapper_generate()
 	bindgen_wrapper_rawGeneration >"$temporaryFolderPath"/rawGeneration
 	
 	cat "$temporaryFolderPath"/rawGeneration | bindgen_wrapper_cleanedGeneration >"$temporaryFolderPath"/cleanedGeneration
-	
+		
 	cat "$temporaryFolderPath"/cleanedGeneration | postprocess_after_generation >"$temporaryFolderPath"/afterGeneration
 	
 	cat "$temporaryFolderPath"/afterGeneration | bindgen_wrapper_rustfmt >"$temporaryFolderPath"/rustfmt
@@ -458,15 +458,7 @@ ${line}"
 					
 					'pub const '*)
 						local stripPrefix="${line#pub const }"
-						name="${stripPrefix%:*}"
-						
-						local field_pub
-						local field_const
-						local constantName
-						local remaining
-						IFS=" :" read -r field_pub field_const constantName remaining <<-EOF
-							${line}
-						EOF
+						local constantName="${stripPrefix%:*}"
 					
 						local chosenFileBaseName='miscellany'
 						local prefix
@@ -500,6 +492,11 @@ ${line}"
 							cat "$configurationFolderPath"/preamble.rs
 							printf '%s\n' "$line"
 						} >"$namedFile"
+					;;
+					
+					# We convert unnamed enums to be constant-like.
+					'pub enum Enum_Unnamed'*)
+						mode=openBraceEnumUnnamed
 					;;
 			
 					'pub enum '*)
@@ -572,6 +569,49 @@ ${line}"
 					mode=next
 				fi
 				printf '%s\n' "$line" >>"$namedFile"
+			;;
+			
+			openBraceEnumUnnamed)
+				if [ "$line" != '{' ]; then
+					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+				fi
+				mode=closeBraceEnumUnnamed
+			;;
+			
+			closeBraceEnumUnnamed)
+				if [ "$line" = '}' ]; then
+					mode=next
+				else
+					local unnamedEnumName
+					local unnamedEnumValue
+					local remainder
+					IFS=$'\t'" =," read -r unnamedEnumName unnamedEnumValue remainder <<-EOF
+						${line}
+					EOF
+				
+					local chosenFileBaseName='miscellany'
+					local prefix
+					local fileBaseName
+					while IFS=' ' read -r prefix fileBaseName
+					do
+						if [ -z "$fileBaseName" ]; then
+							bindgen_wrapper_fail "constant.mapping prefix '$prefix' has no fileBaseName"
+						fi
+					
+						case "$constantName" in
+						
+							"$prefix"*)
+								chosenFileBaseName="$fileBaseName"
+								break
+							;;
+						
+						esac
+					
+					done <"$configurationFolderPath"/constant.mapping
+				
+					printf 'pub const %s: %s = %s;\n' "$unnamedEnumName" 'u32' "$unnamedEnumValue" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
+				fi
+			
 			;;
 			
 			openBracePubStaticMut)
