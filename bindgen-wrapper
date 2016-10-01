@@ -745,6 +745,7 @@ ${line}"
 	local structFile
 	set +f
 	for structFile in "$outputFolderPath"/structs/*.rs
+	do
 		set -f
 		
 		sed -i -e 's/\tfn default() -> Self/\t#[inline(always)]\n\tfn default() -> Self/g' "$structFile"
