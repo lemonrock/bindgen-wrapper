@@ -425,12 +425,10 @@ bindgen_wrapper_generate()
 	cat "$temporaryFolderPath"/afterGeneration | bindgen_wrapper_rustfmt >"$temporaryFolderPath"/rustfmt
 	
 	cat "$temporaryFolderPath"/rustfmt | postprocess_after_rustfmt >"$temporaryFolderPath"/afterRustfmt
-		
-	grep -v '^pub const ' "$temporaryFolderPath"/afterRustfmt >"$temporaryFolderPath"/withoutConstants
-
-	grep -v '^pub type ' "$temporaryFolderPath"/withoutConstants >"$temporaryFolderPath"/withoutConstantsWithoutTypes
 	
-	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs "$outputFolderPath"/statics "$outputFolderPath"/functions "$temporaryFolderPath"/statics "$temporaryFolderPath"/functions
+	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs \
+		"$outputFolderPath"/constants "$outputFolderPath"/statics "$outputFolderPath"/functions \
+		"$temporaryFolderPath"/constants "$temporaryFolderPath"/statics "$temporaryFolderPath"/functions
 	
 	local namedFile=''
 	local name=''	
@@ -461,7 +459,36 @@ ${line}"
 					'pub const '*)
 						local stripPrefix="${line#pub const }"
 						name="${stripPrefix%:*}"
-						printf '%s\n' "$line" >>"$temporaryFolderPath"/constants
+						
+						local field_pub
+						local field_const
+						local constantName
+						local remaining
+						IFS=" :" read -r field_pub field_const constantName remaining <<-EOF
+							${line}
+						EOF
+					
+						local chosenFileBaseName='miscellany'
+						local prefix
+						local fileBaseName
+						while IFS=' ' read -r prefix fileBaseName
+						do
+							if [ -z "$fileBaseName" ]; then
+								bindgen_wrapper_fail "constant.mapping prefix '$prefix' has no fileBaseName"
+							fi
+						
+							case "$constantName" in
+							
+								"$prefix"*)
+									chosenFileBaseName="$fileBaseName"
+									break
+								;;
+							
+							esac
+						
+						done <"$configurationFolderPath"/constant.mapping
+					
+						printf '%s\n' "$line" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
 					;;
 					
 					'pub type '*)
@@ -647,11 +674,29 @@ ${line}"
 		bindgen_wrapper_prepend
 		
 		printf '\n'
-	
+		
 		printf 'include!("constants.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constants >>"$outputFolderPath"/constants.rs
-		rm -rf "$temporaryFolderPath"/constants
+		cd "$temporaryFolderPath"/constants 1>/dev/null 2>/dev/null
+			
+			set +f
+			local constantsSetFile
+			for constantsSetFile in *
+			do
+				set -f
+				
+				printf 'include!("constants/%s.rs");\n' "$constantsSetFile" >>"$temporaryFolderPath"/constant-sets
+				
+				{
+					cat "$configurationFolderPath"/preamble.rs
+					LC_ALL=en_US.UTF-8 sort "$constantsSetFile"
+				} >"$outputFolderPath"/constants/"$constantsSetFile".rs
+			done
+			set -f
+		
+		cd - 1>/dev/null 2>/dev/null
+		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
+		rm -rf "$temporaryFolderPath"/constant-sets "$temporaryFolderPath"/constants
 			
 		printf 'include!("types.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
