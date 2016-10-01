@@ -719,6 +719,8 @@ ${line}"
 		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
 		
 	} >"$outputFilePath"
+	
+	final_chance_to_tweak
 }
 
 bindgen_wrapper_buildCheck()
@@ -766,6 +768,10 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	postprocess_after_rustfmt()
 	{
 		cat
+	}
+	final_chance_to_tweak()
+	{
+		:
 	}
 	. "$configurationFolderPath"/configuration.sh
 	
