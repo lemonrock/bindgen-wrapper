@@ -499,6 +499,7 @@ ${line}"
 					
 					# We convert unnamed enums to be constant-like.
 					'pub enum Enum_Unnamed'*)
+						attributes=''
 						mode=openBraceEnumUnnamed
 					;;
 			
