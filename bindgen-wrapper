@@ -741,6 +741,18 @@ ${line}"
 	
 	
 	
+	# Add inline annotations to default
+	local structFile
+	set +f
+	for structFile in "$outputFolderPath"/structs/*.rs
+		set -f
+		
+		sed -i -e 's/\tfn default() -> Self/\t#[inline(always)]\n\tfn default() -> Self/g' "$structFile"
+	done
+	set -f
+	
+	
+	
 	final_chance_to_tweak
 }
 
