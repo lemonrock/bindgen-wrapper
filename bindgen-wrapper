@@ -186,7 +186,7 @@ bindgen_wrapper_installBindgen()
 	LLVM_CONFIG_PATH="$llvmPrefix"/bin/llvm-config \
 	LIBCLANG_PATH="$libclangPath" \
 	LIBCLANG_STATIC_PATH="$llvmPrefix"/lib \
-		bindgen_wrapper_cargoBinaryInstall bindgen
+		bindgen_wrapper_cargoBinaryInstall bindgen --git https://github.com/lemonrock/rust-bindgen.git
 }
 
 bindgen_wrapper_installHeadersAndCopyOverrides()
