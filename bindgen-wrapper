@@ -323,7 +323,7 @@ bindgen_wrapper_installPrerequisites()
 bindgen_wrapper_prepend()
 {
 	local fileToPrepend
-	for fileToPrepend in "$configurationFolderPath"/preamble.rs "$_program_path"/includes.rs "$configurationFolderPath"/post-includes.rs
+	for fileToPrepend in "$configurationFolderPath"/preamble.rs "$configurationFolderPath"/pre-includes.rs "$_program_path"/includes.rs "$configurationFolderPath"/post-includes.rs
 	do
 		if [ -s "$fileToPrepend" ]; then
 			cat "$fileToPrepend"
