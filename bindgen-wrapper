@@ -445,7 +445,7 @@ bindgen_wrapper_remapConstantTypes()
 	while IFS=' ' read -r constant constantRemappedType
 	do
 		# eg -e 's/pub const RTE_ETH_NAME_MAX_LEN: c_int /pub const RTE_ETH_NAME_MAX_LEN: size_t /g'
-		set -- "$@" -e 's/pub const '"$constant"': c_int /pub const '"$constant"': '"$constantRemappedType"' /g'
+		set -- "$@" -e 's/pub const '"$constant"': [A-Za-z_][A-Za-z0-9_]* /pub const '"$constant"': '"$constantRemappedType"' /g'
 	done <"$configurationFolderPath"/constant.types
 	
 	sed "$@"
