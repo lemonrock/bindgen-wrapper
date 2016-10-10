@@ -1,5 +1,3 @@
-#![allow(non_camel_case_types)]
-
 extern crate core;
 use ::core::default::Default;
 use ::core::option::Option;
