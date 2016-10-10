@@ -59,6 +59,8 @@ The following read-only variables are available to `configuration.sh`:-
 
 These values may not be absolute. Do not `cd` inside `configuration.sh`. The [mbedtls-sys] `configuration.sh` uses `homeFolder` to find a local copy of the mbedtls source code included as a git submodule.
 
+The file `constant.types` allows for remapping of constants defined using `#define` in C to sensible values in Rust. The file `suppress-debug-warnings` lists structs to suppress debug warnings for.
+
 ## Extras
 
 * On Mac OS X, a shell function compatible version of `tac` is available inside your `configuration.sh`. Do `bindgen_wrapper_addTacFallbackIfNotPresent` outside of any function. See [mbedtls-sys] for an example.

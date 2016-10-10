@@ -405,6 +405,52 @@ bindgen_wrapper_rustfmt()
 		-e 's/^}$/}'"$newline"'/g' -e 's/^pub type \(.*\)$/pub type \1'"$newline"'/g'
 }
 
+bindgen_wrapper_renameUnnamedTypes()
+{
+	sed \
+		-e 's/Struct_Unnamed/AnonymousStruct/g' \
+		-e 's/Union_Unnamed/AnonymousUnion/g'
+}
+
+bindgen_wrapper_suppressDebugWarnings()
+{
+	if [ ! -s "$configurationFolderPath"/suppress-debug-warnings ]; then
+		cat
+		return 0
+	fi
+	
+	local newline='\'$'\n'
+	
+	set --
+	local struct
+	while IFS='' read -r struct
+	do
+		# eg -e 's/pub struct lcore_config$/#[allow(missing_debug_implementations)]'"$newline"'pub struct lcore_config/g'
+		set -- "$@" -e 's/pub struct '"$struct"'$/#[allow(missing_debug_implementations)]'"$newline"'pub struct '"$struct"'/g'
+	done <"$configurationFolderPath"/suppress-debug-warnings
+	
+	sed "$@"
+}
+
+bindgen_wrapper_remapConstantTypes()
+{
+	if [ ! -s "$configurationFolderPath"/constant.types ]; then
+		cat
+		return 0
+	fi
+	
+	set --
+	local constant
+	local constantRemappedType
+	while IFS=' ' read -r constant constantRemappedType
+	do
+		# eg -e 's/pub const RTE_ETH_NAME_MAX_LEN: c_int /pub const RTE_ETH_NAME_MAX_LEN: size_t /g'
+		set -- "$@" -e 's/pub const '"$constant"': c_int /pub const '"$constant"': '"$constantRemappedType"' /g'
+	done <"$configurationFolderPath"/constant.types
+	
+	sed "$@"
+}
+
 bindgen_wrapper_generate()
 {
 	local temporaryFolderPath="$_program_path"/temporary
@@ -427,7 +473,13 @@ bindgen_wrapper_generate()
 	
 	sed -e 's/: Enum_Unnamed[0-9]* = Enum_Unnamed[0-9]*::/: u32 = /g' "$temporaryFolderPath"/rustfmt >"$temporaryFolderPath"/unnamedenumsremoved
 	
-	cat "$temporaryFolderPath"/unnamedenumsremoved | postprocess_after_rustfmt >"$temporaryFolderPath"/afterRustfmt
+	cat "$temporaryFolderPath"/unnamedenumsremoved | bindgen_wrapper_renameUnnamedTypes >"$temporaryFolderPath"/rennamed-unnamed-types
+	
+	cat "$temporaryFolderPath"/rennamed-unnamed-types | bindgen_wrapper_suppressDebugWarnings >"$temporaryFolderPath"/suppress-debug-warnings
+	
+	cat "$temporaryFolderPath"/suppress-debug-warnings | bindgen_wrapper_remapConstantTypes >"$temporaryFolderPath"/remapped-constant-types
+	
+	cat "$temporaryFolderPath"/remapped-constant-types| postprocess_after_rustfmt >"$temporaryFolderPath"/afterRustfmt
 	
 	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs \
 		"$outputFolderPath"/constants "$outputFolderPath"/statics "$outputFolderPath"/functions \
