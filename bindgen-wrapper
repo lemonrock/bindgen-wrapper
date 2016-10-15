@@ -227,7 +227,8 @@ bindgen_wrapper_bindgen()
 	case "$platform" in
 		
 		Darwin)
-			"$_program_path"/bindgen-macosx "$@" -U__BLOCKS__
+			local prefix="$(brew --prefix musl-cross)"
+			"$_program_path"/bindgen-macosx "$@" -U__BLOCKS__ --sysroot="$prefix"/does-not-exist -isystem"$prefix"/libexec/x86_64-linux-musl/include -D__linux__
 		;;
 		
 		*)
@@ -245,10 +246,15 @@ bindgen_wrapper_installPrerequisites()
 	case "$platform" in
 		
 		Darwin)
+			bindgen_wrapper_macosxHomebrewInstall musl-cross
+			bindgen_wrapper_macosxHomebrewInstall gnu-sed
+			bindgen_wrapper_macosxHomebrewInstall coreutils
 			bindgen_wrapper_macosxHomebrewInstall llvm --with-shared-libs --with-all-targets
 			
 			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
 			packagesToInstall="$macosXHomebrewPackageNames"
+			
+			export PATH="$(brew --prefix gnu-sed)"/libexec/gnubin:"$(brew --prefix coreutils)"/libexec/gnubin:"$PATH"
 		;;
 		
 		Linux)
@@ -901,21 +907,6 @@ ${line}"
 	final_chance_to_tweak
 }
 
-bindgen_wrapper_buildCheck()
-{
-	cd "$_program_path"/.. 1>/dev/null 2>/dev/null
-		
-		cargo clean
-		
-		if ! cargo build; then
-			bindgen_wrapper_fail "Make sure that Cargo.toml contains a dependency for libc, at least 0.2"
-		fi
-	
-	cd - 1>/dev/null 2>/dev/null
-	
-	printf '\n\n%s\n\n\n' "***** Generated and Compiles *****"
-}
-
 bindgen_wrapper_sourceConfigurationThenExecute()
 {
 	local functionToExecute="$1"
@@ -965,7 +956,6 @@ bindgen_wrapper_execute()
 	bindgen_wrapper_installPrerequisites
 	preprocess_before_headersFolderPath
 	bindgen_wrapper_generate
-	bindgen_wrapper_buildCheck
 }
 
 bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder()
