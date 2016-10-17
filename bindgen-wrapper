@@ -198,8 +198,15 @@ bindgen_wrapper_installHeadersAndCopyOverrides()
 bindgen_wrapper_createOutputFolder()
 {
 	local outputFolderPath="${outputFilePath%/*}"
-	rm -rf "$outputFolderPath"
 	mkdir -m 0755 -p "$outputFolderPath"
+	local file
+	for file in constants enums functions statics structs types
+	do
+		rm -rf "$outputFolderPath"/"$file".rs "$outputFolderPath"/"$file"
+	done
+	rm -rf "$outputFolderPath"/headers
+	rm -rf "$outputFolderPath"/.do-not-build
+	rm -rf "$outputFolderPath"/lib.rs
 }
 
 bindgen_wrapper_addTacFallbackIfNotPresent()
