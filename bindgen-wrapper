@@ -205,7 +205,6 @@ bindgen_wrapper_createOutputFolder()
 		rm -rf "$outputFolderPath"/"$file".rs "$outputFolderPath"/"$file"
 	done
 	rm -rf "$outputFolderPath"/headers
-	rm -rf "$outputFolderPath"/.do-not-build
 	rm -rf "$outputFolderPath"/lib.rs
 }
 
@@ -247,6 +246,8 @@ bindgen_wrapper_bindgen()
 
 bindgen_wrapper_installPrerequisites()
 {
+	bindgen_wrapper_addTacFallbackIfNotPresent
+	
 	# Platform specific installation of dependencies
 	local packagesToInstall
 	local packageInstallFunction
