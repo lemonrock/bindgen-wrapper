@@ -197,15 +197,7 @@ bindgen_wrapper_installHeadersAndCopyOverrides()
 
 bindgen_wrapper_createOutputFolder()
 {
-	local outputFolderPath="${outputFilePath%/*}"
 	mkdir -m 0755 -p "$outputFolderPath"
-	local file
-	for file in constants enums functions statics structs types
-	do
-		rm -rf "$outputFolderPath"/"$file".rs "$outputFolderPath"/"$file"
-	done
-	rm -rf "$outputFolderPath"/headers
-	rm -rf "$outputFolderPath"/lib.rs
 }
 
 bindgen_wrapper_addTacFallbackIfNotPresent()
@@ -466,11 +458,7 @@ bindgen_wrapper_remapConstantTypes()
 }
 
 bindgen_wrapper_generate()
-{
-	local temporaryFolderPath="$_program_path"/temporary
-	rm -rf "$temporaryFolderPath"
-	mkdir -m 0750 -p "$temporaryFolderPath"
-	
+{	
 	local temporaryIncludeFolder="$_program_path"/temporary/includes
 	
 	bindgen_wrapper_installHeadersAndCopyOverrides
@@ -555,7 +543,7 @@ ${line}"
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
-						printf 'include!("types/%s");\n' "$name".rs >>"$temporaryFolderPath"/types
+						printf 'include!("bindgen/types/%s");\n' "$name".rs >>"$temporaryFolderPath"/types
 						namedFile="$outputFolderPath"/types/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -571,7 +559,7 @@ ${line}"
 			
 					'pub enum '*)
 						name="${line#pub enum }"
-						printf 'include!("enums/%s");\n' "$name".rs >>"$temporaryFolderPath"/enums
+						printf 'include!("bindgen/enums/%s");\n' "$name".rs >>"$temporaryFolderPath"/enums
 						namedFile="$outputFolderPath"/enums/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -584,7 +572,7 @@ ${line}"
 
 					'pub struct '*)
 						name="${line#pub struct }"
-						printf 'include!("structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
+						printf 'include!("bindgen/structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
 						namedFile="$outputFolderPath"/structs/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -785,7 +773,7 @@ ${line}"
 		
 		printf '\n'
 		
-		printf 'include!("constants.rs");\n'
+		printf 'include!("bindgen/constants.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
 		cd "$temporaryFolderPath"/constants 1>/dev/null 2>/dev/null
 			
@@ -795,7 +783,7 @@ ${line}"
 			do
 				set -f
 				
-				printf 'include!("constants/%s.rs");\n' "$constantsSetFile" >>"$temporaryFolderPath"/constant-sets
+				printf 'include!("bindgen/constants/%s.rs");\n' "$constantsSetFile" >>"$temporaryFolderPath"/constant-sets
 				
 				{
 					cat "$configurationFolderPath"/preamble.rs
@@ -808,22 +796,22 @@ ${line}"
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
 		rm -rf "$temporaryFolderPath"/constant-sets "$temporaryFolderPath"/constants
 			
-		printf 'include!("types.rs");\n'
+		printf 'include!("bindgen/types.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
 		rm -rf "$temporaryFolderPath"/types
 	
-		printf 'include!("enums.rs");\n'
+		printf 'include!("bindgen/enums.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
 		rm -rf "$temporaryFolderPath"/enums
 		
-		printf 'include!("structs.rs");\n'
+		printf 'include!("bindgen/structs.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
 		rm -rf "$temporaryFolderPath"/structs
 		
-		printf 'include!("statics.rs");\n'
+		printf 'include!("bindgen/statics.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
 		cd "$temporaryFolderPath"/statics 1>/dev/null 2>/dev/null
 			
@@ -833,7 +821,7 @@ ${line}"
 			do
 				set -f
 				
-				printf 'include!("statics/%s.rs");\n' "$staticsSetFile" >>"$temporaryFolderPath"/static-sets
+				printf 'include!("bindgen/statics/%s.rs");\n' "$staticsSetFile" >>"$temporaryFolderPath"/static-sets
 				
 				{
 					cat "$configurationFolderPath"/preamble.rs
@@ -848,7 +836,7 @@ ${line}"
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
 		rm -rf "$temporaryFolderPath"/static-sets "$temporaryFolderPath"/statics
 		
-		printf 'include!("functions.rs");\n'
+		printf 'include!("bindgen/functions.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
 		cd "$temporaryFolderPath"/functions 1>/dev/null 2>/dev/null
 			
@@ -858,7 +846,7 @@ ${line}"
 			do
 				set -f
 				
-				printf 'include!("functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
+				printf 'include!("bindgen/functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
 				
 				{
 					cat "$configurationFolderPath"/preamble.rs
@@ -873,7 +861,7 @@ ${line}"
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
 		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
 		
-	} >"$outputFilePath"
+	} >"$outputFolderPath"/lib.rs
 	
 	
 	
@@ -930,8 +918,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local link
 	local macosXHomebrewPackageNames
 	local alpineLinuxPackageNames
-	local outputFolderPath="$homeFolder"/src
-	local outputFilePath="$outputFolderPath"/lib.rs
+		
 	local headersFolderPath=''
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
@@ -979,6 +966,13 @@ bindgen_wrapper_main()
 	bindgen_wrapper_ensureRequiredBinariesArePresent "Required for basic operation" uname rm mkdir cat sed sort grep
 	
 	bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder
+
+	local temporaryFolderPath="$_program_path"/temporary
+	rm -rf "$temporaryFolderPath"
+	mkdir -m 0750 -p "$temporaryFolderPath"
+	
+	local outputFolderPath="$_program_path"/../../src/bindgen
+	rm -rf "$outputFolderPath"
 	
 	# Platform variations that can be overridden by configuration
 	local platform="$(uname)"
