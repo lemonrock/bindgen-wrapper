@@ -17,6 +17,5 @@ if ! command -v bindgen 1>/dev/null 2>/dev/null; then
 	exit 1
 fi
 
-prefix="$(brew --prefix)"
-llvmPrefix="$prefix"/opt/llvm
-DYLD_LIBRARY_PATH="$llvmPrefix"/lib CLANG_PATH="$llvmPrefix"/bin/clang exec bindgen "$@"
+prefix="$(brew --prefix llvm38)"
+DYLD_LIBRARY_PATH="$prefix"/lib/llvm-3.8/lib CLANG_PATH="$prefix"/bin/clang-3.8 exec bindgen "$@"
