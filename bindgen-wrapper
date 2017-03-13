@@ -328,7 +328,7 @@ bindgen_wrapper_prepend()
 			printf '\n'
 		fi
 	done
-
+	
 	local IFS=' '
 	local linkValue
 	local hasLinks=false
@@ -336,7 +336,11 @@ bindgen_wrapper_prepend()
 	for linkValue in $link
 	do
 		hasLinks=true
-		printf '#[link(name = "%s")]\n' "$linkValue"
+		if [ "$link_kind" = 'dynamic' ]; then
+			printf '#[link(name = "%s")]\n' "$linkValue"
+		else
+			printf '#[link(name = "%s", kind = "%s")]\n' "$linkValue" "$link_kind"
+		fi
 	done
 	if $hasLinks; then
 		cat <<-EOF
@@ -908,6 +912,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local bindingsName
 	local rootIncludeFileName
 	local link
+	local link_kind='dynamic'
 	local macosXHomebrewPackageNames
 	local alpineLinuxPackageNames
 
