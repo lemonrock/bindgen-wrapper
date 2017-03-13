@@ -144,12 +144,12 @@ bindgen_wrapper_macosxHomebrewInstall()
 	fi
 
 	if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
-		brew update
-		brew upgrade
+		brew update 1>&2
+		brew upgrade 1>&2
 		_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=false
 	fi
 
-	brew install "$package" "$@"
+	brew install "$package" "$@" 1>&2
 }
 
 bindgen_wrapper_alpineLinuxInstall()
