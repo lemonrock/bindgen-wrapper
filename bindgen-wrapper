@@ -410,28 +410,31 @@ bindgen_wrapper_rustfmt()
 
 bindgen_wrapper_renameUnnamedTypes()
 {
-	local inputFilePath="$1"
+	local type="$1"  # eg Struct
+	local inputFilePath="$2"
 	
-	local outputFilePath="$temporaryFolderPath"/unnamed-structs.output
+	local prefix="${type}"_Unnamed
+	
+	local outputFilePath="$temporaryFolderPath"/unnamed."$prefix".output
 	cp "$inputFilePath" "$outputFilePath"
 	
 	# Find all unnammed structs and then find which struct uses them
 	# This logic will not work for unnammed structs that are part of an unnamed struct, union, etc
-	local unnamedStructsFilePath="$temporaryFolderPath"/unnamed-structs.list
-	grep '^pub struct Struct_Unnamed' "$outputFilePath" | awk '{print $3}' | sed -e 's/^Struct_Unnamed//g' | sort -n -r -u >"$unnamedStructsFilePath"
+	local unnamedStructsFilePath="$temporaryFolderPath"/unnamed."$prefix".list
+	grep '^pub struct '"$prefix"'' "$outputFilePath" | awk '{print $3}' | sed -e 's/^'"$prefix"'//g' | sort -n -r -u >"$unnamedStructsFilePath"
 
 	local unnamedStructNumber
 	local unnamedStructName
 	while IFS='' read -r unnamedStructNumber
 	do
-		local unnamedStructName=Struct_Unnamed"${unnamedStructNumber}"
+		local unnamedStructName="${prefix}""${unnamedStructNumber}"
 		
 		# Is it an anonymous field in a struct?
 		local parentStructName="$(grep -m 1 -B 1000 ': '"$unnamedStructName"',$' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
 		if [ -n "$parentStructName" ]; then
 			
 			local parentStructFieldName="$(grep -m 1 ': '"$unnamedStructName"',$' "$inputFilePath" | awk '{print $2}' | awk -F':' '{print $1}')"
-			local replacementStructName="${parentStructName}"_AnonymousStruct_"${parentStructFieldName}"
+			local replacementStructName="${parentStructName}"_Anonymous"${type}"_"${parentStructFieldName}"
 			
 			printf 'Replacing anonymous struct %s (used in struct '$parentStructName' field) with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
 			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;'"$unnamedStructName"',;'"$replacementStructName"',;g' "$outputFilePath"
@@ -443,7 +446,7 @@ bindgen_wrapper_renameUnnamedTypes()
 		if [ -n "$parentStructName" ]; then
 			
 			local parentStructFieldName="$(grep -m 1 ': \[*'"$unnamedStructName"';' "$inputFilePath" | awk '{print $2}' | awk -F':' '{print $1}')"
-			local replacementStructName="${parentStructName}"_AnonymousStruct_"${parentStructFieldName}"
+			local replacementStructName="${parentStructName}"_Anonymous"${type}"_"${parentStructFieldName}"
 			
 			printf 'Replacing anonymous struct %s (used in struct '$parentStructName' array field) with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
 			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;\['"$unnamedStructName"';['"$replacementStructName"',;g' "$outputFilePath"
@@ -455,20 +458,19 @@ bindgen_wrapper_renameUnnamedTypes()
 		if [ -n "$parentUnionName" ]; then
 			
 			local parentUnionFieldName="$(grep -m 1 'pub unsafe fn .*(&mut self) ->.* '"$unnamedStructName"$'' "$inputFilePath" | awk '{print $4}' | awk -F'(' '{print $1}')"
-			local replacementStructName="${parentUnionName}"_AnonymousStruct_"${parentUnionFieldName}"
+			local replacementStructName="${parentUnionName}"_Anonymous"${type}"_"${parentUnionFieldName}"
 			
 			printf 'Replacing anonymous struct %s (used in union '$parentUnionName') with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
 			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;'"$unnamedStructName"',;'"$replacementStructName"',;g' "$outputFilePath"
 			continue
 		fi
 		
-		
 		printf 'What uses the anonymous struct %s?\n' "$unnamedStructName" 1>&2
 		exit 1	
 		
 	done <"$unnamedStructsFilePath"
 	
-	sed -e 's/Union_Unnamed/AnonymousUnion/g' "$outputFilePath"
+	cat "$outputFilePath"
 }
 
 bindgen_wrapper_suppressDebugWarnings()
@@ -526,11 +528,12 @@ bindgen_wrapper_generate()
 
 	cat "$temporaryFolderPath"/afterGeneration | bindgen_wrapper_rustfmt >"$temporaryFolderPath"/rustfmt
 
-	sed -e 's/: Enum_Unnamed[0-9]* = Enum_Unnamed[0-9]*::/: u32 = /g' "$temporaryFolderPath"/rustfmt >"$temporaryFolderPath"/unnamedenumsremoved
+	sed -e 's/: Enum_Unnamed[0-9]* = Enum_Unnamed[0-9]*::/: u32 = /g' "$temporaryFolderPath"/rustfmt >"$temporaryFolderPath"/unnamed-enums-removed
 
-	bindgen_wrapper_renameUnnamedTypes "$temporaryFolderPath"/unnamedenumsremoved >"$temporaryFolderPath"/rennamed-unnamed-types
+	bindgen_wrapper_renameUnnamedTypes 'Union' "$temporaryFolderPath"/unnamed-enums-removed >"$temporaryFolderPath"/renamed-unnamed-unions
+	bindgen_wrapper_renameUnnamedTypes 'Struct' "$temporaryFolderPath"/renamed-unnamed-unions >"$temporaryFolderPath"/renamed-unnamed-unions-and-structs
 
-	cat "$temporaryFolderPath"/rennamed-unnamed-types | bindgen_wrapper_suppressDebugWarnings >"$temporaryFolderPath"/suppress-debug-warnings
+	cat "$temporaryFolderPath"/renamed-unnamed-unions-and-structs | bindgen_wrapper_suppressDebugWarnings >"$temporaryFolderPath"/suppress-debug-warnings
 
 	cat "$temporaryFolderPath"/suppress-debug-warnings | bindgen_wrapper_remapConstantTypes >"$temporaryFolderPath"/remapped-constant-types
 
