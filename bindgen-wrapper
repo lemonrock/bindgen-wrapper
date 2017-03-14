@@ -893,10 +893,60 @@ ${line}"
 			"$structFile"
 	done
 	set -f
+	
+	
+	
+	bindgen_wrapper_remove_equality_derives_from_structs
+	
+	bindgen_wrapper_remove_debug_derives_from_structs
 
 
-
+	
 	final_chance_to_tweak
+}
+
+bindgen_wrapper_remove_equality_derives_from_structs()
+{
+	local dataFilePath="$configurationFolderPath"/remove-equality-derives-from-structs
+	if [ ! -s "$dataFilePath" ]; then
+		return 0
+	fi
+	
+	cd "$outputFolderPath"/structs 1>/dev/null 2>/dev/null
+		
+		local structName
+		while IFS= read -r structName
+		do
+			local fileName="$structName".rs
+			if [ ! -f "$fileName" ]; then
+				bindgen_wrapper_fail "Can not remove-equality-derives-from-structs for struct '$structName'"
+			fi
+			sed -i -e 's;, PartialEq, Eq, PartialOrd, Ord, Hash;;g' "$fileName"
+		done <"$dataFilePath"
+		
+	cd - 1>/dev/null 2>/dev/null
+}
+
+bindgen_wrapper_remove_debug_derives_from_structs()
+{
+	local dataFilePath="$configurationFolderPath"/remove-debug-derives-from-structs
+	if [ ! -s "$dataFilePath" ]; then
+		return 0
+	fi
+	
+	cd "$outputFolderPath"/structs 1>/dev/null 2>/dev/null
+		
+		local structName
+		while IFS= read -r structName
+		do
+			local fileName="$structName".rs
+			if [ ! -f "$fileName" ]; then
+				bindgen_wrapper_fail "Can not remove-equality-derives-from-structs for struct '$structName'"
+			fi
+			sed -i -e 's;, Debug;;g' -e 's;#\[derive;#[allow(missing_copy_implementations)]\n#[derive;g' "$fileName"
+		done <"$dataFilePath"
+		
+	cd - 1>/dev/null 2>/dev/null
 }
 
 bindgen_wrapper_sourceConfigurationThenExecute()
