@@ -204,14 +204,15 @@ bindgen_wrapper_createOutputFolder()
 
 bindgen_wrapper_addTacFallbackIfNotPresent()
 {
-	# Note: tac does not exist on Mac OS X
-	if ! command -v tac 1>/dev/null 2>/dev/null; then
-		bindgen_wrapper_ensureRequiredBinariesArePresent "Required because 'tac' binary is not present" tail
-		tac()
-		{
-			tail -r -- "$@"
-		}
-	fi
+	# # Note: tac does not exist on Mac OS X
+	# if ! command -v tac 1>/dev/null 2>/dev/null; then
+	# 	bindgen_wrapper_ensureRequiredBinariesArePresent "Required because 'tac' binary is not present" tail
+	# 	tac()
+	# 	{
+	# 		tail -r -- "$@"
+	# 	}
+	# fi
+	:
 }
 
 bindgen_wrapper_bindgen()
@@ -409,9 +410,65 @@ bindgen_wrapper_rustfmt()
 
 bindgen_wrapper_renameUnnamedTypes()
 {
-	sed \
-		-e 's/Struct_Unnamed/AnonymousStruct/g' \
-		-e 's/Union_Unnamed/AnonymousUnion/g'
+	local inputFilePath="$1"
+	
+	local outputFilePath="$temporaryFolderPath"/unnamed-structs.output
+	cp "$inputFilePath" "$outputFilePath"
+	
+	# Find all unnammed structs and then find which struct uses them
+	# This logic will not work for unnammed structs that are part of an unnamed struct, union, etc
+	local unnamedStructsFilePath="$temporaryFolderPath"/unnamed-structs.list
+	grep '^pub struct Struct_Unnamed' "$outputFilePath" | awk '{print $3}' | sed -e 's/^Struct_Unnamed//g' | sort -n -r -u >"$unnamedStructsFilePath"
+
+	local unnamedStructNumber
+	local unnamedStructName
+	while IFS='' read -r unnamedStructNumber
+	do
+		local unnamedStructName=Struct_Unnamed"${unnamedStructNumber}"
+		
+		# Is it an anonymous field in a struct?
+		local parentStructName="$(grep -m 1 -B 1000 ': '"$unnamedStructName"',$' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
+		if [ -n "$parentStructName" ]; then
+			
+			local parentStructFieldName="$(grep -m 1 ': '"$unnamedStructName"',$' "$inputFilePath" | awk '{print $2}' | awk -F':' '{print $1}')"
+			local replacementStructName="${parentStructName}"_AnonymousStruct_"${parentStructFieldName}"
+			
+			printf 'Replacing anonymous struct %s (used in struct '$parentStructName' field) with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
+			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;'"$unnamedStructName"',;'"$replacementStructName"',;g' "$outputFilePath"
+			continue
+		fi
+		
+		# Is it an anonymous array field in a struct?
+		local parentStructName="$(grep -m 1 -B 1000 ': \[*'"$unnamedStructName"';' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
+		if [ -n "$parentStructName" ]; then
+			
+			local parentStructFieldName="$(grep -m 1 ': \[*'"$unnamedStructName"';' "$inputFilePath" | awk '{print $2}' | awk -F':' '{print $1}')"
+			local replacementStructName="${parentStructName}"_AnonymousStruct_"${parentStructFieldName}"
+			
+			printf 'Replacing anonymous struct %s (used in struct '$parentStructName' array field) with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
+			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;\['"$unnamedStructName"';['"$replacementStructName"',;g' "$outputFilePath"
+			continue
+		fi
+		
+		# Is it an anonymous field in an union?
+		local parentUnionName="$(grep -m 1 -B 1000 'pub unsafe fn .*(&mut self) ->.* '"$unnamedStructName"$'' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
+		if [ -n "$parentUnionName" ]; then
+			
+			local parentUnionFieldName="$(grep -m 1 'pub unsafe fn .*(&mut self) ->.* '"$unnamedStructName"$'' "$inputFilePath" | awk '{print $4}' | awk -F'(' '{print $1}')"
+			local replacementStructName="${parentUnionName}"_AnonymousStruct_"${parentUnionFieldName}"
+			
+			printf 'Replacing anonymous struct %s (used in union '$parentUnionName') with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
+			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;'"$unnamedStructName"',;'"$replacementStructName"',;g' "$outputFilePath"
+			continue
+		fi
+		
+		
+		printf 'What uses the anonymous struct %s?\n' "$unnamedStructName" 1>&2
+		exit 1	
+		
+	done <"$unnamedStructsFilePath"
+	
+	sed -e 's/Union_Unnamed/AnonymousUnion/g' "$outputFilePath"
 }
 
 bindgen_wrapper_suppressDebugWarnings()
@@ -471,7 +528,7 @@ bindgen_wrapper_generate()
 
 	sed -e 's/: Enum_Unnamed[0-9]* = Enum_Unnamed[0-9]*::/: u32 = /g' "$temporaryFolderPath"/rustfmt >"$temporaryFolderPath"/unnamedenumsremoved
 
-	cat "$temporaryFolderPath"/unnamedenumsremoved | bindgen_wrapper_renameUnnamedTypes >"$temporaryFolderPath"/rennamed-unnamed-types
+	bindgen_wrapper_renameUnnamedTypes "$temporaryFolderPath"/unnamedenumsremoved >"$temporaryFolderPath"/rennamed-unnamed-types
 
 	cat "$temporaryFolderPath"/rennamed-unnamed-types | bindgen_wrapper_suppressDebugWarnings >"$temporaryFolderPath"/suppress-debug-warnings
 
