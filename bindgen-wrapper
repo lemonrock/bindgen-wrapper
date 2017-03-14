@@ -199,7 +199,7 @@ bindgen_wrapper_installHeadersAndCopyOverrides()
 
 bindgen_wrapper_createOutputFolder()
 {
-	mkdir -m 0755 -p "$outputFolderPath"
+	mkdir -m 0700 -p "$outputFolderPath"
 }
 
 bindgen_wrapper_addTacFallbackIfNotPresent()
@@ -900,7 +900,7 @@ ${line}"
 	
 	bindgen_wrapper_remove_debug_derives_from_structs
 
-
+	bindgen_wrapper_extract_opaque_pointers_from_enums
 	
 	final_chance_to_tweak
 }
@@ -945,6 +945,34 @@ bindgen_wrapper_remove_debug_derives_from_structs()
 			fi
 			sed -i -e 's;, Debug;;g' -e 's;#\[derive;#[allow(missing_copy_implementations)]\n#[derive;g' "$fileName"
 		done <"$dataFilePath"
+		
+	cd - 1>/dev/null 2>/dev/null
+}
+
+bindgen_wrapper_extract_opaque_pointers_from_enums()
+{
+	local opaqueStructName
+	cd "$outputFolderPath"/enums 1>/dev/null 2>/dev/null
+		
+		set +f
+			set -- *.rs
+		set -f
+	
+		mkdir -m 0700 -p "$outputFolderPath"/opaques
+		
+		{
+			cat "$configurationFolderPath"/preamble.rs
+			grep '^#\[allow(missing_copy_implementations)\]' "$@" | awk -F. '{print $1}' | LC_ALL=C sort -u | while IFS= read -r opaqueStructName
+			do
+				sed -i -e 's;include!("bindgen/enums/'"$opaqueStructName"'.rs");DELETEME;g' -e '/DELETEME/d' "$outputFolderPath"/enums.rs
+			
+				printf 'include!("bindgen/opaques/%s.rs");\n' "$opaqueStructName"
+			
+				mv "$outputFolderPath"/enums/"$opaqueStructName".rs "$outputFolderPath"/opaques
+			done
+		} >"$outputFolderPath"/opaques.rs
+
+		printf 'include!("bindgen/opaques.rs");\n' >>"$outputFolderPath"/lib.rs
 		
 	cd - 1>/dev/null 2>/dev/null
 }
