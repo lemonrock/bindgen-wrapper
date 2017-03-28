@@ -975,7 +975,7 @@ ${line}"
 		sed -i \
 			-e 's/\tfn clone(\&self) -> Self/\t#[inline(always)]\n\tfn clone(\&self) -> Self/g' \
 			-e 's/\tfn default() -> Self/\t#[inline(always)]\n\tfn default() -> Self/g' \
-			-e 's/\tpub unsafe fn/\t#[inline(always)]\n#[allow(trivial_casts)]\n\tpub fn/g' \
+			-e 's/\tpub unsafe fn/\t#[inline(always)]\n\t#[allow(trivial_casts)]\n\tpub fn/g' \
 			"$structFile"
 	done
 	set -f
