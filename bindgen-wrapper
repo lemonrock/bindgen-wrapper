@@ -7,7 +7,6 @@ set -e
 set -u
 set -f
 
-
 _program_path_find()
 {
     if [ "${_program_fattening_program_path+set}" = 'set' ]; then
@@ -777,6 +776,32 @@ ${line}"
 					done <"$configurationFolderPath"/static.mapping
 
 					printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
+
+					IFS=$'\t'" :" read -r field_pub field_static staticName remaining <<-EOF
+						${line}
+					EOF
+
+					local chosenFileBaseName='miscellany'
+					local prefix
+					local fileBaseName
+					while IFS=' ' read -r prefix fileBaseName
+					do
+						if [ -z "$fileBaseName" ]; then
+							bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
+						fi
+
+						case "$staticName" in
+
+							"$prefix"*)
+								chosenFileBaseName="$fileBaseName"
+								break
+							;;
+
+						esac
+
+					done <"$configurationFolderPath"/static.mapping
+
+					printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
 				fi
 			;;
 
@@ -854,25 +879,31 @@ ${line}"
 				} >"$outputFolderPath"/constants/"$constantsSetFile".rs
 			done
 			set -f
-
+		
 		cd - 1>/dev/null 2>/dev/null
 		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
 		rm -rf "$temporaryFolderPath"/constant-sets "$temporaryFolderPath"/constants
-
-		printf 'include!("bindgen/types.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
-		rm -rf "$temporaryFolderPath"/types
-
-		printf 'include!("bindgen/enums.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
-		rm -rf "$temporaryFolderPath"/enums
-
-		printf 'include!("bindgen/structs.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
-		rm -rf "$temporaryFolderPath"/structs
+		
+		if [ -f "$temporaryFolderPath"/types ]; then
+			printf 'include!("bindgen/types.rs");\n'
+			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
+			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
+			rm -rf "$temporaryFolderPath"/types
+		fi
+		
+		if [ -f "$temporaryFolderPath"/enums ]; then
+			printf 'include!("bindgen/enums.rs");\n'
+			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
+			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
+			rm -rf "$temporaryFolderPath"/enums
+		fi
+		
+		if [ -f "$temporaryFolderPath"/structs ]; then
+			printf 'include!("bindgen/structs.rs");\n'
+			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
+			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
+			rm -rf "$temporaryFolderPath"/structs
+		fi
 
 		printf 'include!("bindgen/statics.rs");\n'
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
@@ -936,7 +967,11 @@ ${line}"
 	for enumOrStructFile in "$outputFolderPath"/enums/*.rs "$outputFolderPath"/structs/*.rs
 	do
 		set -f
-
+		
+		if [ ! -f "$enumOrStructFile" ]; then
+			continue
+		fi
+		
 		if grep -q '^#\[derive(Copy, Clone)\]$' "$enumOrStructFile"; then
 			if grep -q '^#\[derive(Debug)\]$' "$enumOrStructFile"; then
 				sed -i -e '/^#\[derive(Copy, Clone)\]$/d' -e '/^#\[derive(Debug)\]$/d' -e 's/^pub /#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub /g' "$enumOrStructFile"
@@ -1043,7 +1078,14 @@ bindgen_wrapper_extract_opaque_pointers_from_enums()
 		set +f
 			set -- *.rs
 		set -f
-	
+		
+		if [ $# -eq 1 ]; then
+			if [ "$1" = '*.rs' ]; then
+				cd - 1>/dev/null 2>/dev/null
+				return 0
+			fi
+		fi
+		
 		mkdir -m 0700 -p "$outputFolderPath"/opaques
 		
 		{
@@ -1084,7 +1126,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
 	{
-		cat
+		:
 	}
 	postprocess_after_generation()
 	{
