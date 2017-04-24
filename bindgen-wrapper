@@ -751,7 +751,7 @@ ${line}"
 					local field_mut
 					local staticName
 					local remaining
-					IFS=$'\t'" :" read -r field_pub field_static field_mut staticName remaining <<-EOF
+					IFS=$'\t'" :" read -r field_pub field_static field_mutOrStaticName staticNameOrRemaining remaining <<-EOF
 						${line}
 					EOF
 
@@ -763,31 +763,12 @@ ${line}"
 						if [ -z "$fileBaseName" ]; then
 							bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
 						fi
-
-						case "$staticName" in
-
-							"$prefix"*)
-								chosenFileBaseName="$fileBaseName"
-								break
-							;;
-
-						esac
-
-					done <"$configurationFolderPath"/static.mapping
-
-					printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
-
-					IFS=$'\t'" :" read -r field_pub field_static staticName remaining <<-EOF
-						${line}
-					EOF
-
-					local chosenFileBaseName='miscellany'
-					local prefix
-					local fileBaseName
-					while IFS=' ' read -r prefix fileBaseName
-					do
-						if [ -z "$fileBaseName" ]; then
-							bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
+						
+						local staticName
+						if [ "$field_mutOrStaticName" = 'mut' ]; then
+							staticName="$staticNameOrRemaining"
+						else
+							staticName="$field_mutOrStaticName"
 						fi
 
 						case "$staticName" in
