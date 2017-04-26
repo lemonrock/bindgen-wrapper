@@ -353,21 +353,12 @@ bindgen_wrapper_prepend()
 
 bindgen_wrapper_rawGeneration()
 {
-	# Scope of bindings
 	cd "$temporaryIncludeFolder" 1>/dev/null 2>/dev/null
-
-		set --
-		local wantedHeaderFile
-		set +f
-		for wantedHeaderFile in *.h
-		do
-			set -f
-			set -- "$@" --match="$wantedHeaderFile"
-		done
-		set -f
+		
+		IFS=' ' set -- $(find . -name '*.h' | sed 's;^./;;g' | xargs printf " --match=%s")
 
 	cd - 1>/dev/null 2>/dev/null
-
+	
 	bindgen_wrapper_bindgen "$@"
 }
 
