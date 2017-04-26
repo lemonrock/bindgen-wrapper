@@ -548,12 +548,19 @@ bindgen_wrapper_generate()
 	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs \
 		"$outputFolderPath"/constants "$outputFolderPath"/statics "$outputFolderPath"/functions \
 		"$temporaryFolderPath"/constants "$temporaryFolderPath"/statics "$temporaryFolderPath"/functions
-
+	
+	# Are there any statics present?
+	if $(grep -q 'pub static' "$temporaryFolderPath"/afterRustfmt); then
+		local externC='ExpectingPubStaticMut'
+	else
+		local externC='ExpectingPubFn'
+	fi
+	
 	local namedFile=''
 	local name=''
 	local attributes=''
 	local mode='next'
-	local externC='ExpectingPubStaticMut'
+	
 	while IFS='' read -r line
 	do
 		case "$mode" in
@@ -851,6 +858,10 @@ ${line}"
 			for constantsSetFile in *
 			do
 				set -f
+				
+				if [ ! -f "$constantsSetFile" ]; then
+					continue
+				fi
 
 				printf 'include!("bindgen/constants/%s.rs");\n' "$constantsSetFile" >>"$temporaryFolderPath"/constant-sets
 
@@ -862,7 +873,9 @@ ${line}"
 			set -f
 		
 		cd - 1>/dev/null 2>/dev/null
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
+		if [ -f "$temporaryFolderPath"/constant-sets ]; then
+			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
+		fi
 		rm -rf "$temporaryFolderPath"/constant-sets "$temporaryFolderPath"/constants
 		
 		if [ -f "$temporaryFolderPath"/types ]; then
@@ -895,6 +908,10 @@ ${line}"
 			for staticsSetFile in *
 			do
 				set -f
+				
+				if [ ! -f "$staticsSetFile" ]; then
+					continue
+				fi
 
 				printf 'include!("bindgen/statics/%s.rs");\n' "$staticsSetFile" >>"$temporaryFolderPath"/static-sets
 
@@ -908,7 +925,9 @@ ${line}"
 			set -f
 
 		cd - 1>/dev/null 2>/dev/null
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
+		if [ -f "$temporaryFolderPath"/static-sets ]; then
+			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
+		fi
 		rm -rf "$temporaryFolderPath"/static-sets "$temporaryFolderPath"/statics
 
 		printf 'include!("bindgen/functions.rs");\n'
@@ -920,6 +939,10 @@ ${line}"
 			for functionsSetFile in *
 			do
 				set -f
+				
+				if [ ! -f "$functionsSetFile" ]; then
+					continue
+				fi
 
 				printf 'include!("bindgen/functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
 
@@ -933,7 +956,9 @@ ${line}"
 			set -f
 
 		cd - 1>/dev/null 2>/dev/null
-		LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
+		if [ -f "$temporaryFolderPath"/function-sets ]; then
+			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
+		fi
 		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
 
 	} >"$outputFolderPath"/lib.rs
@@ -972,6 +997,10 @@ ${line}"
 	do
 		set -f
 		
+		if [ ! -f "$structFile" ]; then
+			continue
+		fi
+		
 		mv "$structFile" "$structFile".orig
 		cat "$structFile".orig | tr '\n' '\r' | gsed -e 's/}\r\tpub unsafe fn/}\r\r\tpub unsafe fn/g' | tr '\r' '\n' >"$structFile"
 		rm "$structFile".orig
@@ -987,6 +1016,10 @@ ${line}"
 	for structFile in "$outputFolderPath"/structs/*.rs
 	do
 		set -f
+		
+		if [ ! -f "$structFile" ]; then
+			continue
+		fi
 
 		sed -i \
 			-e 's/\tfn clone(\&self) -> Self/\t#[inline(always)]\n\tfn clone(\&self) -> Self/g' \
