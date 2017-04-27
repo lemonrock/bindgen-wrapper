@@ -111,7 +111,7 @@ bindgen_wrapper_cargoBinaryInstall()
 	local crate="$1"
 	shift 1
 
-	if command -v "$crate" 1>/dev/null 2>/dev/null; then
+	if [ ! -x ~/.cargo/bin/"$crate" ]; then
 		return 0
 	fi
 
@@ -122,10 +122,6 @@ bindgen_wrapper_cargoBinaryInstall()
 	fi
 
 	cargo install "$@" "$crate"
-
-	if ! command -v "$crate" 1>/dev/null 2>/dev/null; then
-		bindgen_wrapper_fail "Please make sure that binaries installed by 'cargo' (such as '$crate') are in your PATH"
-	fi
 }
 
 _bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=true
@@ -171,77 +167,8 @@ bindgen_wrapper_alpineLinuxInstall()
 	fi
 }
 
-bindgen_wrapper_installBindgen()
-{
-	if command -v bindgen 1>/dev/null 2>/dev/null; then
-		return 0
-	fi
-
-	case "$platform" in
-
-		Darwin)
-			LLVM_CONFIG_PATH=/usr/local/opt/llvm38/bin/llvm-config-3.8 LIBCLANG_PATH=/usr/local/opt/llvm38/lib/llvm-3.8/lib LIBCLANG_STATIC_PATH=/usr/local/opt/llvm38/lib/llvm-3.8/lib cargo install --git https://github.com/lemonrock/rust-bindgen.git bindgen
-		;;
-
-		Linux)
-			LLVM_CONFIG_PATH=/usr/bin/llvm-config LIBCLANG_PATH=/usr/lib LIBCLANG_STATIC_PATH=/usr/lib cargo install --git https://github.com/lemonrock/rust-bindgen.git bindgen
-		;;
-
-	esac
-}
-
-bindgen_wrapper_installHeadersAndCopyOverrides()
-{
-	mkdir -m 0750 -p "$temporaryIncludeFolder"
-	rsync --quiet --archive "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
-}
-
-bindgen_wrapper_createOutputFolder()
-{
-	mkdir -m 0700 -p "$outputFolderPath"
-}
-
-bindgen_wrapper_addTacFallbackIfNotPresent()
-{
-	# # Note: tac does not exist on Mac OS X
-	# if ! command -v tac 1>/dev/null 2>/dev/null; then
-	# 	bindgen_wrapper_ensureRequiredBinariesArePresent "Required because 'tac' binary is not present" tail
-	# 	tac()
-	# 	{
-	# 		tail -r -- "$@"
-	# 	}
-	# fi
-	:
-}
-
-bindgen_wrapper_bindgen()
-{
-	# clangAdditionalArguments deliberately has quotes omitted
-	set -- "$@" \
-		--convert-macros \
-		--macro-int-types=sint,sint,sint,slonglong,sint,sint,sint,slonglong \
-		--use-core \
-		--ctypes-prefix=XXX \
-		"$temporaryIncludeFolder"/"$rootIncludeFileName" -- -I"$temporaryIncludeFolder" $clangAdditionalArguments
-
-	case "$platform" in
-
-		Darwin)
-			local prefix="$(brew --prefix musl-cross)"
-			"$_program_path"/bindgen-macosx "$@" -U__BLOCKS__ --sysroot="$prefix"/does-not-exist -isystem"$prefix"/libexec/x86_64-linux-musl/include -D__linux__
-		;;
-
-		*)
-			CLANG_PATH="$llvmPrefix"/bin/clang ~/.cargo/bin/bindgen "$@" --sysroot="$prefix"/does-not-exist -isystem"$prefix"/MUSL-HEADERS-TODO -D__linux__
-		;;
-
-	esac
-}
-
 bindgen_wrapper_installPrerequisites()
 {
-	bindgen_wrapper_addTacFallbackIfNotPresent
-
 	# Platform specific installation of dependencies
 	local packagesToInstall
 	local packageInstallFunction
@@ -251,7 +178,7 @@ bindgen_wrapper_installPrerequisites()
 			bindgen_wrapper_macosxHomebrewInstall musl-cross
 			bindgen_wrapper_macosxHomebrewInstall gnu-sed
 			bindgen_wrapper_macosxHomebrewInstall coreutils
-			bindgen_wrapper_macosxHomebrewInstall homebrew/versions/llvm38 --with-shared-libs --with-all-targets
+			#bindgen_wrapper_macosxHomebrewInstall homebrew/versions/llvm38 --with-shared-libs --with-all-targets
 
 			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
 			packagesToInstall="$macosXHomebrewPackageNames"
@@ -315,185 +242,170 @@ bindgen_wrapper_installPrerequisites()
 	done
 
 	bindgen_wrapper_cargoBinaryInstall rustfmt
-	bindgen_wrapper_installBindgen
+	bindgen_wrapper_cargoBinaryInstall bindgen
 }
 
-bindgen_wrapper_prepend()
+bindgen_wrapper_installHeadersAndCopyOverrides()
 {
-	local fileToPrepend
-	for fileToPrepend in "$configurationFolderPath"/preamble.rs "$configurationFolderPath"/pre-includes.rs "$_program_path"/includes.rs "$configurationFolderPath"/post-includes.rs
+	mkdir -m 0700 -p "$temporaryIncludeFolder"
+	rsync --quiet --archive "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
+}
+
+bindgen_wrapper_createOutputFolder()
+{
+	mkdir -m 0700 -p "$outputFolderPath"
+}
+
+bindgen_wrapper_bindgen()
+{
+	local outputFilePath="$1"
+	
+	set -- \
+		--disable-name-namespacing --generate-inline-functions --no-doc-comments --no-layout-tests --no-recursive-whitelist --objc-extern-crate --use-core --verbose \
+		--with-derive-default --ctypes-prefix ::libc --output "$outputFilePath"
+
+	local regexOptionName
+	for regexOptionName in 'bitfield-enum' 'constified-enum' 'whitelist-function' 'whitelist-type' 'whitelist-var'
 	do
-		if [ -s "$fileToPrepend" ]; then
-			cat "$fileToPrepend"
-			printf '\n'
+		local regexFilePath="$configurationFolderPath"/"$regexOptionName".regex
+		if [ -s "$regexFilePath" ]; then
+			local regexValue
+			local remaining
+			while IFS=' ' read -r regexValue remaining
+			do
+				set -- "$@" --"$regexOptionName" "$regexValue"
+			done <"$regexFilePath"
+		fi
+	done
+
+	local typeOptionName
+	for typeOptionName in 'blacklist-type' 'opaque-type'
+	do
+		local typeFilePath="$configurationFolderPath"/"$typeOptionName".type
+		if [ -s "$typeFilePath" ]; then
+			local typeValue
+			local remaining
+			while IFS=' ' read -r typeValue remaining
+			do
+				set -- "$@" --"$typeOptionName" "$typeValue"
+			done <"$typeFilePath"
 		fi
 	done
 	
-	local IFS=' '
-	local linkValue
-	local hasLinks=false
-	# quotes deliberately ommitted
-	for linkValue in $link
-	do
-		hasLinks=true
-		if [ "$link_kind" = 'dynamic' ]; then
-			printf '#[link(name = "%s")]\n' "$linkValue"
-		else
-			printf '#[link(name = "%s", kind = "%s")]\n' "$linkValue" "$link_kind"
-		fi
-	done
-	if $hasLinks; then
-		cat <<-EOF
-			extern "C"
-			{
-			}
-		EOF
-	fi
-}
-
-bindgen_wrapper_rawGeneration()
-{
-	cd "$temporaryIncludeFolder" 1>/dev/null 2>/dev/null
-		
-		IFS=' ' set -- $(find . -name '*.h' | sed 's;^./;;g' | xargs printf " --match=%s")
-
-	cd - 1>/dev/null 2>/dev/null
 	
-	bindgen_wrapper_bindgen "$@"
+	set -- "$@" \
+		"$temporaryIncludeFolder"/"$rootIncludeFileName" \
+		-- -I"$temporaryIncludeFolder" $clangAdditionalArguments
+    
+	case "$platform" in
+
+		Darwin)
+			local prefix="$(brew --prefix musl-cross)"
+			~/.cargo/bin/bindgen "$@" -U__BLOCKS__ --sysroot="$prefix"/does-not-exist -isystem"$prefix"/libexec/x86_64-linux-musl/include -D__linux__
+		;;
+
+		*)
+			~/.cargo/bin/bindgen "$@" --sysroot="$prefix"/does-not-exist -isystem"$prefix"/MUSL-HEADERS-TODO -D__linux__
+		;;
+
+	esac
 }
 
 bindgen_wrapper_cleanedGeneration()
 {
+	local inputFilePath="$1"
+	local outputFilePath="$2"
+	
 	local newline='\'$'\n'
-
-	# sed line explanations:-
-	# 1 - remove bindgen comment
-	# 2 - remove multiline allow that (a) rustfmt can't format and (b) is no longer the first item in the file because of the use statements above and (c) is overly broad
-	# 3 to 7 - remove prefixes in favour of use statements above for readability
-	# 8 - suppress Copy warnings for empty enums which are types for opaque structs, format them (rustfmt can't)
-	# 9 - replace redundant `raw.offset(0)` with `raw`
-	# 10 - replace let raw: *mut u8 = transmute(&self._bindgen_data_); et al with let raw = &mut self._bindgen_data_ as *mut _ as *mut u8;
-	# 11 - replace transmute(raw) or transmute(raw.offset(SOME_VALUE)) with `raw as *mut _`
-	# 12 - replace `raw.offset(SOME_VALUE)` with unsafe { raw.offset(SOME_VALUE) }  (this will let us remove the 'unsafe' from the functions containing it)
+	
+	set --
+	
+	# Generate includes.rs
+	{
+		if grep -q '::libc::' "$inputFilePath"; then
+			printf 'extern crate libc;\n\n\n'
+		fi
+		
+		local pattern
+		for pattern in \
+			'::core::clone::Clone' \
+			'::core::default::Default' \
+			'::core::fmt::Debug' \
+			'::core::fmt::Formatter' \
+			'::core::fmt::Result' \
+			'::core::marker::Copy' \
+			'::core::marker::PhantomData' \
+			'::core::mem::transmute' \
+			'::core::mem::zeroed' \
+			'::core::option::Option' \
+			'::core::slice::from_raw_parts' \
+			'::core::slice::from_raw_parts_mut'
+		do
+			if grep -q "$pattern" "$inputFilePath"; then
+				printf "use ${pattern};\n"
+			fi
+		done
+		
+		grep '::libc::' "$inputFilePath" \
+			| sed -e 's/;/ /g' -e 's/$/ /g' -e 's/,/ /g' -e 's/>/ /g' -e 's/)/ /g' -e 's/\]/ /g' -e 's/\[/ /g' -e 's/^.* \(::libc::[a-zA-Z0-9_]*\) .*$/\1/g' \
+			| sort -u \
+			| awk '{print "use " $1 ";"}'
+		
+	} >"$temporaryFolderPath"/includes.rs
+	
+	# Explanations
+	# Line 1: Remove comment
+	# Line 2: Remove any blank lines (so normalizing the file; we'll reinsert blank lines later)
+	# Line 3: Remove any ::libc:: prefixes
+	# Lines 4 - 9: Remove any ::core::X:: prefixes
+	# Line 10: Remove #[inline] statements
 	sed \
 		-e '/automatically generated by rust-bindgen/d' \
-		-e '/#!\[allow(dead_code,/,/non_snake_case/d' \
-		-e 's/::XXX:://g' \
+		-e '/^$/d' \
+		-e 's/::libc:://g' \
 		-e 's/::core::clone:://g' \
-		-e 's/::core::option:://g' \
-		-e 's/::core::mem:://g' \
 		-e 's/::core::default:://g' \
-		-e 's/^pub enum \(.*\) { }/#[allow(missing_copy_implementations)]'"$newline"'#[derive(Debug)]'"$newline"'pub enum \1'"$newline"'{'"$newline"'}/g' \
-		-e 's/raw.offset(0)/raw/g' \
-		-e 's/let raw: \*mut u8 = transmute(&self\.\(.*\));/let raw = \&mut self.\1 as *mut _ as *mut u8;/g' \
-		-e 's/transmute(\(.*\))$/\1 as *mut _/g' \
-		-e 's/raw\.offset(\(.*\))/(unsafe { raw.offset(\1) })/g'
+		-e 's/::core::fmt:://g' \
+		-e 's/::core::marker:://g' \
+		-e 's/::core::mem:://g' \
+		-e 's/::core::option:://g' \
+		-e 's/::core::slice:://g' \
+		-e 's/#\[inline\]//g' \
+		"$inputFilePath" >"$outputFilePath"
 }
-# trivial-casts
+
 bindgen_wrapper_rustfmt()
 {
-	local newline='\'$'\n'
+	local inputFilePath="$1"
+	local outputFilePath="$2"
+	
+	cat "$inputFilePath" | ~/.cargo/bin/rustfmt --config-path "$_program_path" >"$outputFilePath"
+}
 
+bindgen_wrapper_rustfmt_tidy()
+{
+	local inputFilePath="$1"
+	local outputFilePath="$2"
+	
 	# sed line explanations-
 	# 1 - add newline before '{' in an extern block (rustfmt can't)
 	# 2 - add newline before '{' in an empty enum (rustfmt can't)
-	# 3 - space out better
-	~/.cargo/bin/rustfmt --config-path "$_program_path"/.. | \
-	sed \
-		-e 's/^extern "C" {/extern "C"'"$newline"'{/g' \
-		-e 's/^pub enum \(.*\) {/pub enum \1'"$newline"'{/g' \
-		-e 's/^}$/}'"$newline"'/g' -e 's/^pub type \(.*\)$/pub type \1'"$newline"'/g'
-}
-
-bindgen_wrapper_renameUnnamedTypes()
-{
-	local type="$1"  # eg Struct
-	local inputFilePath="$2"
-	
-	local prefix="${type}"_Unnamed
-	
-	local outputFilePath="$temporaryFolderPath"/unnamed."$prefix".output
-	cp "$inputFilePath" "$outputFilePath"
-	
-	# Find all unnammed structs and then find which struct uses them
-	# This logic will not work for unnammed structs that are part of an unnamed struct, union, etc
-	local unnamedStructsFilePath="$temporaryFolderPath"/unnamed."$prefix".list
-	grep '^pub struct '"$prefix"'' "$outputFilePath" | awk '{print $3}' | sed -e 's/^'"$prefix"'//g' | sort -n -r -u >"$unnamedStructsFilePath"
-
-	local unnamedStructNumber
-	local unnamedStructName
-	while IFS='' read -r unnamedStructNumber
-	do
-		local unnamedStructName="${prefix}""${unnamedStructNumber}"
-		
-		# Is it an anonymous field in a struct?
-		local parentStructName="$(grep -m 1 -B 1000 ': '"$unnamedStructName"',$' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
-		if [ -n "$parentStructName" ]; then
-			
-			local parentStructFieldName="$(grep -m 1 ': '"$unnamedStructName"',$' "$inputFilePath" | awk '{print $2}' | awk -F':' '{print $1}')"
-			local replacementStructName="${parentStructName}"_Anonymous"${type}"_"${parentStructFieldName}"
-			
-			printf 'Replacing anonymous struct %s (used in struct '$parentStructName' field) with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
-			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;'"$unnamedStructName"',;'"$replacementStructName"',;g' "$outputFilePath"
-			continue
-		fi
-		
-		# Is it an anonymous array field in a struct?
-		local parentStructName="$(grep -m 1 -B 1000 ': \[*'"$unnamedStructName"';' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
-		if [ -n "$parentStructName" ]; then
-			
-			local parentStructFieldName="$(grep -m 1 ': \[*'"$unnamedStructName"';' "$inputFilePath" | awk '{print $2}' | awk -F':' '{print $1}')"
-			local replacementStructName="${parentStructName}"_Anonymous"${type}"_"${parentStructFieldName}"
-			
-			printf 'Replacing anonymous struct %s (used in struct '$parentStructName' array field) with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
-			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;\['"$unnamedStructName"';['"$replacementStructName"',;g' "$outputFilePath"
-			continue
-		fi
-		
-		# Is it an anonymous field in an union?
-		local parentUnionName="$(grep -m 1 -B 1000 'pub unsafe fn .*(&mut self) ->.* '"$unnamedStructName"$'' "$inputFilePath" | tac | grep -m 1 '^pub struct ' | awk '{print $3}')"
-		if [ -n "$parentUnionName" ]; then
-			
-			local parentUnionFieldName="$(grep -m 1 'pub unsafe fn .*(&mut self) ->.* '"$unnamedStructName"$'' "$inputFilePath" | awk '{print $4}' | awk -F'(' '{print $1}')"
-			local replacementStructName="${parentUnionName}"_Anonymous"${type}"_"${parentUnionFieldName}"
-			
-			printf 'Replacing anonymous struct %s (used in union '$parentUnionName') with %s\n' "$unnamedStructName" "$replacementStructName" 1>&2
-			sed -i -e 's;'"$unnamedStructName"$';'"$replacementStructName"';g' -e 's;'"$unnamedStructName"',;'"$replacementStructName"',;g' "$outputFilePath"
-			continue
-		fi
-		
-		printf 'What uses the anonymous struct %s?\n' "$unnamedStructName" 1>&2
-		exit 1	
-		
-	done <"$unnamedStructsFilePath"
-	
-	cat "$outputFilePath"
-}
-
-bindgen_wrapper_suppressDebugWarnings()
-{
-	if [ ! -s "$configurationFolderPath"/suppress-debug-warnings ]; then
-		cat
-		return 0
-	fi
-
-	local newline='\'$'\n'
-
-	set --
-	local struct
-	while IFS='' read -r struct
-	do
-		# eg -e 's/pub struct lcore_config$/#[allow(missing_debug_implementations)]'"$newline"'pub struct lcore_config/g'
-		set -- "$@" -e 's/pub struct '"$struct"'$/#[allow(missing_debug_implementations)]'"$newline"'pub struct '"$struct"'/g'
-	done <"$configurationFolderPath"/suppress-debug-warnings
-
-	sed "$@"
+	# 3 - add newline before '{' in an union (rustfmt can't)
+	# 4 - strip blank lines to make further processing easier
+    sed \
+		-e 's/^extern "C" {/extern "C"\n{/g' \
+		-e 's/^pub enum \(.*\) {/pub enum \1\n{/g' \
+		-e 's/^pub union \(.*\) {/pub union \1\n{/g' \
+		-e '/^$/d' \
+		"$inputFilePath" >"$outputFilePath"
 }
 
 bindgen_wrapper_remapConstantTypes()
 {
+	local inputFilePath="$1"
+	
 	if [ ! -s "$configurationFolderPath"/constant.types ]; then
-		cat
+		cat "$inputFilePath"
 		return 0
 	fi
 
@@ -506,52 +418,27 @@ bindgen_wrapper_remapConstantTypes()
 		set -- "$@" -e 's/pub const '"$constant"': [A-Za-z_][A-Za-z0-9_]* /pub const '"$constant"': '"$constantRemappedType"' /g'
 	done <"$configurationFolderPath"/constant.types
 
-	sed "$@"
+	sed "$@" "$inputFilePath"
 }
 
-bindgen_wrapper_generate()
+bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 {
-	local temporaryIncludeFolder="$_program_path"/temporary/includes
-
-	bindgen_wrapper_installHeadersAndCopyOverrides
-
-	bindgen_wrapper_createOutputFolder
-
-	bindgen_wrapper_rawGeneration >"$temporaryFolderPath"/rawGeneration
-
-	cat "$temporaryFolderPath"/rawGeneration | bindgen_wrapper_cleanedGeneration >"$temporaryFolderPath"/cleanedGeneration
-
-	cat "$temporaryFolderPath"/cleanedGeneration | postprocess_after_generation >"$temporaryFolderPath"/afterGeneration
-
-	cat "$temporaryFolderPath"/afterGeneration | bindgen_wrapper_rustfmt >"$temporaryFolderPath"/rustfmt
-
-	sed -e 's/: Enum_Unnamed[0-9]* = Enum_Unnamed[0-9]*::/: u32 = /g' "$temporaryFolderPath"/rustfmt >"$temporaryFolderPath"/unnamed-enums-removed
-
-	bindgen_wrapper_renameUnnamedTypes 'Union' "$temporaryFolderPath"/unnamed-enums-removed >"$temporaryFolderPath"/renamed-unnamed-unions
-	bindgen_wrapper_renameUnnamedTypes 'Struct' "$temporaryFolderPath"/renamed-unnamed-unions >"$temporaryFolderPath"/renamed-unnamed-unions-and-structs
-
-	cat "$temporaryFolderPath"/renamed-unnamed-unions-and-structs | bindgen_wrapper_suppressDebugWarnings >"$temporaryFolderPath"/suppress-debug-warnings
-
-	cat "$temporaryFolderPath"/suppress-debug-warnings | bindgen_wrapper_remapConstantTypes >"$temporaryFolderPath"/remapped-constant-types
-
-	cat "$temporaryFolderPath"/remapped-constant-types| postprocess_after_rustfmt >"$temporaryFolderPath"/afterRustfmt
-
-	mkdir -m 0750 -p "$outputFolderPath"/types "$outputFolderPath"/enums "$outputFolderPath"/structs \
-		"$outputFolderPath"/constants "$outputFolderPath"/statics "$outputFolderPath"/functions \
-		"$temporaryFolderPath"/constants "$temporaryFolderPath"/statics "$temporaryFolderPath"/functions
-	
-	# Are there any statics present?
-	if $(grep -q 'pub static' "$temporaryFolderPath"/afterRustfmt); then
-		local externC='ExpectingPubStaticMut'
-	else
-		local externC='ExpectingPubFn'
-	fi
+	mkdir -m 0700 -p \
+		"$outputFolderPath"/constants \
+		"$outputFolderPath"/enums \
+		"$outputFolderPath"/functions \
+		"$outputFolderPath"/statics \
+		"$outputFolderPath"/structs \
+		"$outputFolderPath"/types \
+		"$outputFolderPath"/unions \
+		"$temporaryFolderPath"/constants \
+		"$temporaryFolderPath"/functions \
+		"$temporaryFolderPath"/statics
 	
 	local namedFile=''
 	local name=''
 	local attributes=''
 	local mode='next'
-	
 	while IFS='' read -r line
 	do
 		case "$mode" in
@@ -559,11 +446,8 @@ bindgen_wrapper_generate()
 			next)
 
 				case "$line" in
-
-					'')
-						continue
-					;;
-
+					
+					# Process Attribute
 					'#'*)
 						if [ -z "$attributes" ]; then
 							attributes="$line"
@@ -572,7 +456,8 @@ bindgen_wrapper_generate()
 ${line}"
 						fi
 					;;
-
+					
+					# Process single line constant (due to rustfmt, all constants are single line)
 					'pub const '*)
 						local stripPrefix="${line#pub const }"
 						local constantName="${stripPrefix%:*}"
@@ -599,7 +484,8 @@ ${line}"
 
 						printf '%s\n' "$line" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
 					;;
-
+					
+					# Process single line type (due to rustfmt, all types are single line)
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
@@ -611,12 +497,20 @@ ${line}"
 						} >"$namedFile"
 					;;
 
-					# We convert unnamed enums to be constant-like.
-					'pub enum Enum_Unnamed'*)
+					# Process single line struct
+					'pub struct '*';')
+						name="$(printf "$line" | tr '<(' '  ' | awk '{print $3}')"
+						printf 'include!("bindgen/structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
+						namedFile="$outputFolderPath"/structs/"$name".rs
+						{
+							cat "$configurationFolderPath"/preamble.rs
+							printf '%s\n' "$attributes"
+							printf '%s\n' "$line"
+						} >"$namedFile"
 						attributes=''
-						mode=openBraceEnumUnnamed
 					;;
-
+					
+					# Process multi line enum
 					'pub enum '*)
 						name="${line#pub enum }"
 						printf 'include!("bindgen/enums/%s");\n' "$name".rs >>"$temporaryFolderPath"/enums
@@ -627,9 +521,10 @@ ${line}"
 							printf '%s\n' "$line"
 						} >"$namedFile"
 						attributes=''
-						mode=openBrace
+						mode=enumOrStructOrUnionExpectingOpenBrace
 					;;
 
+					# Process multi line struct
 					'pub struct '*)
 						name="${line#pub struct }"
 						printf 'include!("bindgen/structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
@@ -640,31 +535,32 @@ ${line}"
 							printf '%s\n' "$line"
 						} >"$namedFile"
 						attributes=''
-						mode=openBrace
+						mode=enumOrStructOrUnionExpectingOpenBrace
 					;;
 
-					'impl '*)
+					# Process multi line union
+					'pub union '*)
+						name="${line#pub union }"
+						printf 'include!("bindgen/unions/%s");\n' "$name".rs >>"$temporaryFolderPath"/unions
+						namedFile="$outputFolderPath"/unions/"$name".rs
+						{
+							cat "$configurationFolderPath"/preamble.rs
+							printf '%s\n' "$attributes"
+							printf '%s\n' "$line"
+						} >"$namedFile"
+						attributes=''
+						mode=enumOrStructOrUnionExpectingOpenBrace
+					;;
+					
+					# Process enum, struct or union impl
+					'impl'*)
 						printf '\n%s\n' "$line" >>"$namedFile"
-						mode=openBrace
+						mode=enumOrStructOrUnionExpectingOpenBrace
 					;;
 
+					# Process pub fn, pub static or pub static mut
 					'extern "C"')
-
-						case "$externC" in
-
-							ExpectingPubStaticMut)
-								mode=openBracePubStaticMut
-							;;
-
-							ExpectingPubFn)
-								mode=openBracePubFn
-							;;
-
-							*)
-								bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode' when externC '$externC'"
-							;;
-
-						esac
+						mode=externCExpectingOpenBrace
 					;;
 
 					*)
@@ -674,169 +570,156 @@ ${line}"
 				esac
 			;;
 
-			openBrace)
+			enumOrStructOrUnionExpectingOpenBrace)
 				if [ "$line" != '{' ]; then
 					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
 				fi
 				printf '%s\n' "$line" >>"$namedFile"
-				mode=closeBrace
+				mode=enumOrStructOrUnionReadUntilCloseBrace
 			;;
 
-			closeBrace)
+			enumOrStructOrUnionReadUntilCloseBrace)
 				if [ "$line" = '}' ]; then
 					mode=next
 				fi
 				printf '%s\n' "$line" >>"$namedFile"
 			;;
 
-			openBraceEnumUnnamed)
+			externCExpectingOpenBrace)
 				if [ "$line" != '{' ]; then
 					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
 				fi
-				mode=closeBraceEnumUnnamed
+				mode=externCExpectingReadUntilCloseBrace
 			;;
 
-			closeBraceEnumUnnamed)
-				if [ "$line" = '}' ]; then
-					mode=next
-				else
-					local unnamedEnumName
-					local unnamedEnumValue
-					local remainder
-					IFS=$'\t'" =," read -r unnamedEnumName unnamedEnumValue remainder <<-EOF
-						${line}
-					EOF
-
-					local chosenFileBaseName='unnamed-enum'
-					local prefix
-					local fileBaseName
-					while IFS=' ' read -r prefix fileBaseName
-					do
-						if [ -z "$fileBaseName" ]; then
-							bindgen_wrapper_fail "unnamed-enum.mapping prefix '$prefix' has no fileBaseName"
-						fi
-
-						case "$unnamedEnumName" in
-
-							"$prefix"*)
-								chosenFileBaseName="$fileBaseName"
-								break
-							;;
-
-						esac
-
-					done <"$configurationFolderPath"/unnamed-enum.mapping
-
-					printf 'pub const %s: %s = %s;\n' "$unnamedEnumName" 'u32' "$unnamedEnumValue" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
-				fi
-
-			;;
-
-			openBracePubStaticMut)
-				if [ "$line" != '{' ]; then
-					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
-				fi
-				mode=closeBracePubStaticMut
-			;;
-
-			closeBracePubStaticMut)
-				if [ "$line" = '}' ]; then
-					mode=next
-					externC=ExpectingPubFn
-				else
-					local field_pub
-					local field_static
-					local field_mut
-					local staticName
-					local remaining
-					IFS=$'\t'" :" read -r field_pub field_static field_mutOrStaticName staticNameOrRemaining remaining <<-EOF
-						${line}
-					EOF
-
-					local chosenFileBaseName='miscellany'
-					local prefix
-					local fileBaseName
-					while IFS=' ' read -r prefix fileBaseName
-					do
-						if [ -z "$fileBaseName" ]; then
-							bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
-						fi
+			externCExpectingReadUntilCloseBrace)
+				case "$line" in
+					
+					'}')
+						mode=next
+					;;
+					
+					$'\t''pub fn '*)
 						
+						local field_pub
+						local field_fn
+						local functionName
+						local remaining
+						IFS=$'\t'" (" read -r field_pub field_fn functionName remaining <<-EOF
+							${line}
+						EOF
+
+						local chosenFileBaseName='miscellany'
+						local prefix
+						local fileBaseName
+						while IFS=' ' read -r prefix fileBaseName
+						do
+							if [ -z "$fileBaseName" ]; then
+								bindgen_wrapper_fail "function.mapping prefix '$prefix' has no fileBaseName"
+							fi
+
+							case "$functionName" in
+
+								"$prefix"*)
+									chosenFileBaseName="$fileBaseName"
+									break
+								;;
+
+							esac
+
+						done <"$configurationFolderPath"/function.mapping
+
+						printf '%s\n' "$line" >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
+					;;
+					
+					$'\t''pub static '*)
+						
+						local field_pub
+						local field_static
+						local field_mutOtStaticName
+						local staticNameOrRemaining
+						IFS=$'\t'" (" read -r field_pub field_static field_mutOtStaticName staticNameOrRemaining <<-EOF
+							${line}
+						EOF
+				
 						local staticName
 						if [ "$field_mutOrStaticName" = 'mut' ]; then
 							staticName="$staticNameOrRemaining"
 						else
 							staticName="$field_mutOrStaticName"
 						fi
+						
+						local chosenFileBaseName='miscellany'
+						local prefix
+						local fileBaseName
+						while IFS=' ' read -r prefix fileBaseName
+						do
+							if [ -z "$fileBaseName" ]; then
+								bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
+							fi
+							
+							case "$staticName" in
 
-						case "$staticName" in
+								"$prefix"*)
+									chosenFileBaseName="$fileBaseName"
+									break
+								;;
 
-							"$prefix"*)
-								chosenFileBaseName="$fileBaseName"
-								break
-							;;
+							esac
 
-						esac
+						done <"$configurationFolderPath"/static.mapping
 
-					done <"$configurationFolderPath"/static.mapping
-
-					printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
-				fi
-			;;
-
-			openBracePubFn)
-				if [ "$line" != '{' ]; then
-					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
-				fi
-				mode=closeBracePubFn
-			;;
-
-			closeBracePubFn)
-				if [ "$line" = '}' ]; then
-					mode=next
-				else
-					local field_pub
-					local field_fn
-					local functionName
-					local remaining
-					IFS=$'\t'" (" read -r field_pub field_fn functionName remaining <<-EOF
-						${line}
-					EOF
-
-					local chosenFileBaseName='miscellany'
-					local prefix
-					local fileBaseName
-					while IFS=' ' read -r prefix fileBaseName
-					do
-						if [ -z "$fileBaseName" ]; then
-							bindgen_wrapper_fail "function.mapping prefix '$prefix' has no fileBaseName"
-						fi
-
-						case "$functionName" in
-
-							"$prefix"*)
-								chosenFileBaseName="$fileBaseName"
-								break
-							;;
-
-						esac
-
-					done <"$configurationFolderPath"/function.mapping
-
-					printf '%s\n' "$line" >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
-				fi
-			;;
-
-			*)
-				bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+						printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
+					;;
+					
+					*)
+						"Invalid line '${line}' in extern C block"
+					;;
+					
+				esac
 			;;
 
 		esac
+	done <"$temporaryFolderPath"/afterRustfmt.rs
+}
 
-	done <"$temporaryFolderPath"/afterRustfmt
-
+bindgen_wrapper_generateLibDotRs()
+{
+	_bindgen_wrapper_prepend()
 	{
-		bindgen_wrapper_prepend
+		local fileToPrepend
+		for fileToPrepend in "$configurationFolderPath"/preamble.rs "$configurationFolderPath"/pre-includes.rs "$temporaryFolderPath"/includes.rs "$configurationFolderPath"/post-includes.rs
+		do
+			if [ -s "$fileToPrepend" ]; then
+				cat "$fileToPrepend"
+				printf '\n'
+			fi
+		done
+	
+		local IFS=' '
+		local linkValue
+		local hasLinks=false
+		# quotes deliberately ommitted
+		for linkValue in $link
+		do
+			hasLinks=true
+			if [ "$link_kind" = 'dynamic' ]; then
+				printf '#[link(name = "%s")]\n' "$linkValue"
+			else
+				printf '#[link(name = "%s", kind = "%s")]\n' "$linkValue" "$link_kind"
+			fi
+		done
+		if $hasLinks; then
+			cat <<-EOF
+				extern "C"
+				{
+				}
+			EOF
+		fi
+	}
+	
+	{
+		_bindgen_wrapper_prepend
 
 		printf '\n'
 
@@ -849,7 +732,7 @@ ${line}"
 			for constantsSetFile in *
 			do
 				set -f
-				
+			
 				if [ ! -f "$constantsSetFile" ]; then
 					continue
 				fi
@@ -858,36 +741,43 @@ ${line}"
 
 				{
 					cat "$configurationFolderPath"/preamble.rs
-					LC_ALL=en_US.UTF-8 sort "$constantsSetFile"
+					sort "$constantsSetFile"
 				} >"$outputFolderPath"/constants/"$constantsSetFile".rs
 			done
 			set -f
-		
+	
 		cd - 1>/dev/null 2>/dev/null
 		if [ -f "$temporaryFolderPath"/constant-sets ]; then
-			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
+			sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
 		fi
 		rm -rf "$temporaryFolderPath"/constant-sets "$temporaryFolderPath"/constants
-		
+	
 		if [ -f "$temporaryFolderPath"/types ]; then
 			printf 'include!("bindgen/types.rs");\n'
 			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
-			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
+			sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
 			rm -rf "$temporaryFolderPath"/types
 		fi
-		
+	
 		if [ -f "$temporaryFolderPath"/enums ]; then
 			printf 'include!("bindgen/enums.rs");\n'
 			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
-			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
+			sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
 			rm -rf "$temporaryFolderPath"/enums
 		fi
-		
+	
 		if [ -f "$temporaryFolderPath"/structs ]; then
 			printf 'include!("bindgen/structs.rs");\n'
 			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
-			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
+			sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
 			rm -rf "$temporaryFolderPath"/structs
+		fi
+	
+		if [ -f "$temporaryFolderPath"/unions ]; then
+			printf 'include!("bindgen/unions.rs");\n'
+			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/unions.rs
+			sort "$temporaryFolderPath"/unions >>"$outputFolderPath"/unions.rs
+			rm -rf "$temporaryFolderPath"/unions
 		fi
 
 		printf 'include!("bindgen/statics.rs");\n'
@@ -899,7 +789,7 @@ ${line}"
 			for staticsSetFile in *
 			do
 				set -f
-				
+			
 				if [ ! -f "$staticsSetFile" ]; then
 					continue
 				fi
@@ -909,7 +799,7 @@ ${line}"
 				{
 					cat "$configurationFolderPath"/preamble.rs
 					printf 'extern "C"\n{\n'
-					LC_ALL=en_US.UTF-8 sort "$staticsSetFile"
+					sort "$staticsSetFile"
 					printf '}\n'
 				} >"$outputFolderPath"/statics/"$staticsSetFile".rs
 			done
@@ -917,7 +807,7 @@ ${line}"
 
 		cd - 1>/dev/null 2>/dev/null
 		if [ -f "$temporaryFolderPath"/static-sets ]; then
-			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
+			sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
 		fi
 		rm -rf "$temporaryFolderPath"/static-sets "$temporaryFolderPath"/statics
 
@@ -930,7 +820,7 @@ ${line}"
 			for functionsSetFile in *
 			do
 				set -f
-				
+			
 				if [ ! -f "$functionsSetFile" ]; then
 					continue
 				fi
@@ -940,7 +830,7 @@ ${line}"
 				{
 					cat "$configurationFolderPath"/preamble.rs
 					printf 'extern "C"\n{\n'
-					LC_ALL=en_US.UTF-8 sort "$functionsSetFile"
+					sort "$functionsSetFile"
 					printf '}\n'
 				} >"$outputFolderPath"/functions/"$functionsSetFile".rs
 			done
@@ -948,40 +838,15 @@ ${line}"
 
 		cd - 1>/dev/null 2>/dev/null
 		if [ -f "$temporaryFolderPath"/function-sets ]; then
-			LC_ALL=en_US.UTF-8 sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
+			sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
 		fi
 		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
 
 	} >"$outputFolderPath"/lib.rs
+}
 
-
-
-
-
-	# Tidy up #[derive]; combine Debug, add additionally valid options
-	local enumOrStructFile
-	set +f
-	for enumOrStructFile in "$outputFolderPath"/enums/*.rs "$outputFolderPath"/structs/*.rs
-	do
-		set -f
-		
-		if [ ! -f "$enumOrStructFile" ]; then
-			continue
-		fi
-		
-		if grep -q '^#\[derive(Copy, Clone)\]$' "$enumOrStructFile"; then
-			if grep -q '^#\[derive(Debug)\]$' "$enumOrStructFile"; then
-				sed -i -e '/^#\[derive(Copy, Clone)\]$/d' -e '/^#\[derive(Debug)\]$/d' -e 's/^pub /#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub /g' "$enumOrStructFile"
-			fi
-		fi
-	done
-	set -f
-
-
-
-
-
-	# Pretty-format union access functions with an extra newline
+bindgen_wrapper_addInlineAnnotations()
+{
 	local structFile
 	set +f
 	for structFile in "$outputFolderPath"/structs/*.rs
@@ -992,87 +857,13 @@ ${line}"
 			continue
 		fi
 		
-		mv "$structFile" "$structFile".orig
-		cat "$structFile".orig | tr '\n' '\r' | gsed -e 's/}\r\tpub unsafe fn/}\r\r\tpub unsafe fn/g' | tr '\r' '\n' >"$structFile"
-		rm "$structFile".orig
-	done
-	set -f
-
-
-
-
-	# Add inline annotations to clone, default and union access functions; add a warning suppresion about type ascription (silly lint that has too many false positives); remove unsafe as no longer required for union access functions (bindgen generated code using transmute)
-	local structFile
-	set +f
-	for structFile in "$outputFolderPath"/structs/*.rs
-	do
-		set -f
-		
-		if [ ! -f "$structFile" ]; then
-			continue
-		fi
-
 		sed -i \
-			-e 's/\tfn clone(\&self) -> Self/\t#[inline(always)]\n\tfn clone(\&self) -> Self/g' \
-			-e 's/\tfn default() -> Self/\t#[inline(always)]\n\tfn default() -> Self/g' \
-			-e 's/\tpub unsafe fn/\t#[inline(always)]\n\t#[allow(trivial_casts)]\n\tpub fn/g' \
+			-e 's/\tfn /\t#[inline(always)]\n\tfn /g' \
+			-e 's/\tpub fn /\t#[inline(always)]\n\tpub fn /g' \
+			-e 's/\tpub unsafe fn /\t#[inline(always)]\n\tpub unsafe fn /g' \
 			"$structFile"
 	done
 	set -f
-	
-	
-	
-	bindgen_wrapper_remove_equality_derives_from_structs
-	
-	bindgen_wrapper_remove_debug_derives_from_structs
-
-	bindgen_wrapper_extract_opaque_pointers_from_enums
-	
-	final_chance_to_tweak
-}
-
-bindgen_wrapper_remove_equality_derives_from_structs()
-{
-	local dataFilePath="$configurationFolderPath"/remove-equality-derives-from-structs
-	if [ ! -s "$dataFilePath" ]; then
-		return 0
-	fi
-	
-	cd "$outputFolderPath"/structs 1>/dev/null 2>/dev/null
-		
-		local structName
-		while IFS= read -r structName
-		do
-			local fileName="$structName".rs
-			if [ ! -f "$fileName" ]; then
-				bindgen_wrapper_fail "Can not remove-equality-derives-from-structs for struct '$structName'"
-			fi
-			sed -i -e 's;, PartialEq, Eq, PartialOrd, Ord, Hash;;g' "$fileName"
-		done <"$dataFilePath"
-		
-	cd - 1>/dev/null 2>/dev/null
-}
-
-bindgen_wrapper_remove_debug_derives_from_structs()
-{
-	local dataFilePath="$configurationFolderPath"/remove-debug-derives-from-structs
-	if [ ! -s "$dataFilePath" ]; then
-		return 0
-	fi
-	
-	cd "$outputFolderPath"/structs 1>/dev/null 2>/dev/null
-		
-		local structName
-		while IFS= read -r structName
-		do
-			local fileName="$structName".rs
-			if [ ! -f "$fileName" ]; then
-				bindgen_wrapper_fail "Can not remove-equality-derives-from-structs for struct '$structName'"
-			fi
-			sed -i -e 's;, Debug;;g' -e 's;#\[derive;#[allow(missing_copy_implementations)]\n#[derive;g' "$fileName"
-		done <"$dataFilePath"
-		
-	cd - 1>/dev/null 2>/dev/null
 }
 
 bindgen_wrapper_extract_opaque_pointers_from_enums()
@@ -1110,6 +901,58 @@ bindgen_wrapper_extract_opaque_pointers_from_enums()
 	cd - 1>/dev/null 2>/dev/null
 }
 
+bindgen_wrapper_generate()
+{
+	local temporaryIncludeFolder="$_program_path"/temporary/includes
+
+	bindgen_wrapper_installHeadersAndCopyOverrides
+
+	bindgen_wrapper_createOutputFolder
+
+	bindgen_wrapper_bindgen "$temporaryFolderPath"/rawGeneration.rs
+	
+	bindgen_wrapper_cleanedGeneration "$temporaryFolderPath"/rawGeneration.rs "$temporaryFolderPath"/cleanedGeneration.rs
+
+	postprocess_after_generation "$temporaryFolderPath"/cleanedGeneration.rs "$temporaryFolderPath"/afterGeneration.rs
+
+	bindgen_wrapper_rustfmt "$temporaryFolderPath"/afterGeneration.rs "$temporaryFolderPath"/rustfmt.rs
+	
+	bindgen_wrapper_rustfmt_tidy "$temporaryFolderPath"/rustfmt.rs "$temporaryFolderPath"/rustfmt-tidy.rs
+	
+	bindgen_wrapper_remapConstantTypes "$temporaryFolderPath"/rustfmt-tidy.rs >"$temporaryFolderPath"/remapped-constant-types.rs
+
+	postprocess_after_rustfmt "$temporaryFolderPath"/remapped-constant-types.rs "$temporaryFolderPath"/afterRustfmt.rs
+	
+	bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles
+	
+	bindgen_wrapper_generateLibDotRs
+
+	bindgen_wrapper_addInlineAnnotations
+	
+	bindgen_wrapper_extract_opaque_pointers_from_enums
+	
+	final_chance_to_tweak
+}
+
+bindgen_wrapper_execute()
+{
+	export LC_ALL=en_US.UTF-8
+	
+	bindgen_wrapper_installPrerequisites
+	
+	preprocess_before_headersFolderPath
+	
+	bindgen_wrapper_generate
+}
+
+bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder()
+{
+	_program_path="$(_program_path_find)"
+	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
+		homeFolder="$(pwd -P)"
+	cd - 1>/dev/null 2>/dev/null
+}
+
 bindgen_wrapper_sourceConfigurationThenExecute()
 {
 	local functionToExecute="$1"
@@ -1120,13 +963,14 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	if [ ! -s "$configurationFilePath" ]; then
 		bindgen_wrapper_fail "Configuration file '$configurationFilePath' is not present, not readable or empty"
 	fi
+	
+	# Source configuration; set up defaults first
 	local bindingsName
 	local rootIncludeFileName
 	local link
 	local link_kind='dynamic'
 	local macosXHomebrewPackageNames
 	local alpineLinuxPackageNames
-
 	local headersFolderPath=''
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
@@ -1135,11 +979,17 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	}
 	postprocess_after_generation()
 	{
-		cat
+		local inputFilePath="$1"
+		local outputFilePath="$2"
+		
+		cat "$inputFilePath" >"$outputFilePath"
 	}
 	postprocess_after_rustfmt()
 	{
-		cat
+		local inputFilePath="$1"
+		local outputFilePath="$2"
+		
+		cat "$inputFilePath" >"$outputFilePath"
 	}
 	final_chance_to_tweak()
 	{
@@ -1152,21 +1002,6 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	fi
 
 	$functionToExecute "$@"
-}
-
-bindgen_wrapper_execute()
-{
-	bindgen_wrapper_installPrerequisites
-	preprocess_before_headersFolderPath
-	bindgen_wrapper_generate
-}
-
-bindgen_wrapper_setAbsoluteProgramPathAndHomeFolder()
-{
-	_program_path="$(_program_path_find)"
-	cd "$_program_path"/../.. 1>/dev/null 2>/dev/null
-		homeFolder="$(pwd -P)"
-	cd - 1>/dev/null 2>/dev/null
 }
 
 bindgen_wrapper_main()
