@@ -424,34 +424,6 @@ bindgen_wrapper_remapConstantTypes()
 
 bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 {
-	_bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles_makeAttributesSpaceSeparatedAndRemoveRedundantOnes()
-	{
-		local linkageName="$1"
-		
-		local result=''
-		local attributeLine
-		while IFS='' read -r attributeLine
-		do
-			if [ "$attributeLine" = "#[link_name = \"$linkageName\"]" ]; then
-				continue
-			else
-				if [ -z "$result" ]; then
-					result="$attributeLine"
-				else
-					result="$result $attributeLine"
-				fi
-			fi
-		done <<-EOF
-			${attributes}
-		EOF
-		
-		if [ -n "$result" ]; then
-			printf '%s ' "$result"
-		fi
-		
-		attributes=''
-	}
-	
 	mkdir -m 0700 -p \
 		"$outputFolderPath"/constants \
 		"$outputFolderPath"/enums \
@@ -626,19 +598,22 @@ ${line}"
 			;;
 
 			externCExpectingReadUntilCloseBrace)
+				
+				# Strip leading space (sed expression assumes non-Mac OS X sed)
+				line="$(printf '%s' "$line" | sed -e 's/^[ \t]*//g')"
+				
 				case "$line" in
 					
 					# Attribute, either #[link_name = "XXXX"] or #[linkage = "XXX"]
-					'    #'*)
+					'#'*)
 						if [ -z "$attributes" ]; then
 							attributes="$line"
 						else
-							attributes="${attributes}
-${line}"
+							attributes="${attributes} ${line}"
 						fi
 					;;
 					
-					$'\t''pub fn '*)
+					'pub fn '*)
 						
 						local field_pub
 						local field_fn
@@ -669,12 +644,16 @@ ${line}"
 						done <"$configurationFolderPath"/function.mapping
 						
 						{
-							_bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles_makeAttributesSpaceSeparatedAndRemoveRedundantOnes "$functionName"
+							printf '\t'
+							if [ -n "$attributes" ]; then
+								printf '%s ' "$attributes"
+							fi
 							printf '%s\n' "$line"
+							attributes=''
 						} >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
 					;;
 					
-					$'\t''pub static '*)
+					'pub static '*)
 						
 						local field_pub
 						local field_static
@@ -712,8 +691,12 @@ ${line}"
 						done <"$configurationFolderPath"/static.mapping
 						
 						{
-							_bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles_makeAttributesSpaceSeparatedAndRemoveRedundantOnes "$staticName"
+							printf '\t'
+							if [ -n "$attributes" ]; then
+								printf '%s ' "$attributes"
+							fi
 							printf '%s\n' "$line"
+							attributes=''
 						} >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
 					;;
 					
@@ -773,17 +756,7 @@ bindgen_wrapper_generateLibDotRs()
 	{
 		local plural="$1"
 		local isExternC="$2"
-
-		if [ -f "$temporaryFolderPath"/"$plural"-sets ]; then
-			sort "$temporaryFolderPath"/"$plural"-sets >>"$outputFolderPath"/"$plural".rs
-			
-			printf 'include!("bindgen/%s.rs");\n' "$plural"
-			
-			rm -rf "$temporaryFolderPath"/"$plural"-sets
-		else
-			return 0
-		fi
-		
+				
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/"$plural".rs
 		cd "$temporaryFolderPath"/"$plural" 1>/dev/null 2>/dev/null
 
@@ -813,6 +786,16 @@ bindgen_wrapper_generateLibDotRs()
 			set -f
 	
 		cd - 1>/dev/null 2>/dev/null
+		
+		if [ -f "$temporaryFolderPath"/"$plural"-sets ]; then
+			sort "$temporaryFolderPath"/"$plural"-sets >>"$outputFolderPath"/"$plural".rs
+		
+			printf 'include!("bindgen/%s.rs");\n' "$plural"
+			
+			rm -rf "$temporaryFolderPath"/"$plural"-sets
+		else
+			return 0
+		fi
 		
 		rm -rf "$temporaryFolderPath"/"$plural"
 	}
