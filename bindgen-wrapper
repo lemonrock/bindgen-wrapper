@@ -258,10 +258,11 @@ bindgen_wrapper_createOutputFolder()
 
 bindgen_wrapper_bindgen()
 {
-	local outputFilePath="$1"
+	local inputFilePath="$1"
+	local outputFilePath="$2"
 	
 	set -- \
-		--disable-name-namespacing --generate-inline-functions --no-doc-comments --no-layout-tests --no-recursive-whitelist --objc-extern-crate --use-core --verbose \
+		--disable-name-namespacing --no-doc-comments --no-layout-tests --no-recursive-whitelist --objc-extern-crate --use-core --verbose \
 		--with-derive-default --ctypes-prefix ::libc --output "$outputFilePath"
 
 	local regexOptionName
@@ -294,7 +295,7 @@ bindgen_wrapper_bindgen()
 	
 	
 	set -- "$@" \
-		"$temporaryIncludeFolder"/"$rootIncludeFileName" \
+		"$inputFilePath" \
 		-- -I"$temporaryIncludeFolder" $clangAdditionalArguments
     
 	case "$platform" in
@@ -311,16 +312,10 @@ bindgen_wrapper_bindgen()
 	esac
 }
 
-bindgen_wrapper_cleanedGeneration()
+bindgen_wrapper_generateIncludes()
 {
 	local inputFilePath="$1"
-	local outputFilePath="$2"
 	
-	local newline='\'$'\n'
-	
-	set --
-	
-	# Generate includes.rs
 	{
 		if grep -q '::libc::' "$inputFilePath"; then
 			printf 'extern crate libc;\n\n\n'
@@ -352,6 +347,12 @@ bindgen_wrapper_cleanedGeneration()
 			| awk '{print "use " $1 ";"}'
 		
 	} >"$temporaryFolderPath"/includes.rs
+}
+
+bindgen_wrapper_cleanedGeneration()
+{
+	local inputFilePath="$1"
+	local outputFilePath="$2"
 	
 	# Explanations
 	# Line 1: Remove comment
@@ -909,7 +910,9 @@ bindgen_wrapper_generate()
 
 	bindgen_wrapper_createOutputFolder
 
-	bindgen_wrapper_bindgen "$temporaryFolderPath"/rawGeneration.rs
+	bindgen_wrapper_bindgen "$temporaryIncludeFolder"/"$rootIncludeFileName" "$temporaryFolderPath"/rawGeneration.rs
+	
+	bindgen_wrapper_generateIncludes "$temporaryFolderPath"/rawGeneration.rs
 	
 	bindgen_wrapper_cleanedGeneration "$temporaryFolderPath"/rawGeneration.rs "$temporaryFolderPath"/cleanedGeneration.rs
 
