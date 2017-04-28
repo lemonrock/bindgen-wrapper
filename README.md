@@ -7,7 +7,14 @@ This small git module makes it easier to generate FFI bindings for rust using [b
 
 It checks for any essential dependencies by looking in the `PATH`; a standard Mac OS X `PATH` with an additional to find binaries installed by cargo should be sufficient.
 
-As an example, check out [mbedtls-sys] on GitHub.
+As an example, check out [bearssl-sys] on GitHub.
+
+## Dependencies
+
+We try to automatically install these, but this is brittle at the moment. In the future, we may use a custom .cargo location.
+
+* bindgen 0.23.1
+* rustfmt 0.8.3
 
 ## Installation
 
@@ -49,7 +56,7 @@ touch bindgen-wrapper.conf.d/post-includes.rs
 touch bindgen-wrapper.conf.d/configuration.sh
 ```
 
-See [mbedtls-sys] and [libfabric] for examples of `configuration.sh`. As a minimum, you should define `bindingsName`, `rootIncludeFileName` and `link`. `link` is a space-separated list of lib names (on Unix systems, omit any `lib` prefix, eg `libmbedtls` is `mbedtls`). The functions `preprocess_before_headersFolderPath`, `postprocess_after_generation`, `postprocess_after_rustfmt` and `final_chance_to_tweak` default to empty. The statement `bindgen_wrapper_addTacFallbackIfNotPresent` is only necessary if either `postprocess_after_generation` or `postprocess_after_rustfmt` need to use the `tac` binary. The values `macosXHomebrewPackageName` and `alpineLinuxPackageName` (if known) can be set to a space-separated list of packages to install as prerequisites, perhaps containing header files. `headersFolderPath` can be used to specify a repository-local or unusual location for headers; it defaults to `/usr/include/$bindingsName` on Linux and `$(brew --prefix)/include/$bindingsName` on Mac OS X. To do actions before `headersFolderPath` is used, insert code in `preprocess_before_headersFolderPath`. This can rely on the packages in `macosXHomebrewPackageName` or `alpineLinuxPackageName` having been installed. The variable `clangAdditionalArguments` can be set to pass additional switches to clang via bindgen.
+See [bearssl-sys] and [libfabric] for examples of `configuration.sh`. As a minimum, you should define `bindingsName`, `rootIncludeFileName` and `link`. `link` is a space-separated list of lib names (on Unix systems, omit any `lib` prefix, eg `libmbedtls` is `mbedtls`). The functions `preprocess_before_headersFolderPath`, `postprocess_after_generation`, `postprocess_after_rustfmt` and `final_chance_to_tweak` default to empty. The statement `bindgen_wrapper_addTacFallbackIfNotPresent` is only necessary if either `postprocess_after_generation` or `postprocess_after_rustfmt` need to use the `tac` binary. The values `macosXHomebrewPackageName` and `alpineLinuxPackageName` (if known) can be set to a space-separated list of packages to install as prerequisites, perhaps containing header files. `headersFolderPath` can be used to specify a repository-local or unusual location for headers; it defaults to `/usr/include/$bindingsName` on Linux and `$(brew --prefix)/include/$bindingsName` on Mac OS X. To do actions before `headersFolderPath` is used, insert code in `preprocess_before_headersFolderPath`. This can rely on the packages in `macosXHomebrewPackageName` or `alpineLinuxPackageName` having been installed. The variable `clangAdditionalArguments` can be set to pass additional switches to clang via bindgen.
 
 The following read-only variables are available to `configuration.sh`:-
 
@@ -61,19 +68,12 @@ These values may not be absolute. Do not `cd` inside `configuration.sh`. The [mb
 
 The file `constant.types` allows for remapping of constants defined using `#define` in C to sensible values in Rust. The file `suppress-debug-warnings` lists structs to suppress debug warnings for.
 
-## Extras
-
-* On Mac OS X, a shell function compatible version of `tac` is available inside your `configuration.sh`. Do `bindgen_wrapper_addTacFallbackIfNotPresent` outside of any function. See [mbedtls-sys] for an example.
-* On Mac OS X, `bindgen-macosx` can be used standalone instead of `bindgen`; it sets paths correctly for use with `brew`. However, you'll have to pass `-- -U__BLOCKS__` (an option to clang) to get it to work on El Capitan if any of the header files you use in generation have `#include <stdlib.h>` in them (directly or indirectly via their includes).
-
-
 ## Known Issues
 
 * This wrapper is untested on anything but Mac OS X El Capitan, but with modification, should work on Alpine Linux, Debian-derivatives and Red Hat derivatives
 * `sed` is somewhat broken on Mac OS X, and we try to work around it.
-* On Mac OS X, if you already installed `llvm` with `brew` make sure you have installed it as `brew install --shared-`
 
 
-[mbedtls-sys]: https://github.com/lemonrock/mbedtls-sys "mbedtls-sys GitHub page"
+[bearssl-sys]: https://github.com/lemonrock/bearssl-sys "bearssl-sys GitHub page"
 [libfabric]: https://github.com/lemonrock/libfabric "libfabric GitHub page"
 [bindgen]: https://github.com/Yamakaky/bindgen "bindgen GitHub page"
