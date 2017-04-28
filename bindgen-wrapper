@@ -424,6 +424,34 @@ bindgen_wrapper_remapConstantTypes()
 
 bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 {
+	_bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles_makeAttributesSpaceSeparatedAndRemoveRedundantOnes()
+	{
+		local linkageName="$1"
+		
+		local result=''
+		local attributeLine
+		while IFS='' read -r attributeLine
+		do
+			if [ "$attributeLine" = "#[link_name = \"$linkageName\"]" ]; then
+				continue
+			else
+				if [ -z "$result" ]; then
+					result="$attributeLine"
+				else
+					result="$result $attributeLine"
+				fi
+			fi
+		done <<-EOF
+			${attributes}
+		EOF
+		
+		if [ -n "$result" ]; then
+			printf '%s ' "$result"
+		fi
+		
+		attributes=''
+	}
+	
 	mkdir -m 0700 -p \
 		"$outputFolderPath"/constants \
 		"$outputFolderPath"/enums \
@@ -561,6 +589,10 @@ ${line}"
 
 					# Process pub fn, pub static or pub static mut
 					'extern "C"')
+						if [ -n "$attributes" ]; then
+							printf 'WARN:%s\n' 'Attributes on extern "C" blocks are not supported' 1>&2
+						fi
+						attributes=''
 						mode=externCExpectingOpenBrace
 					;;
 
@@ -596,8 +628,14 @@ ${line}"
 			externCExpectingReadUntilCloseBrace)
 				case "$line" in
 					
-					'}')
-						mode=next
+					# Attribute, either #[link_name = "XXXX"] or #[linkage = "XXX"]
+					'    #'*)
+						if [ -z "$attributes" ]; then
+							attributes="$line"
+						else
+							attributes="${attributes}
+${line}"
+						fi
 					;;
 					
 					$'\t''pub fn '*)
@@ -629,17 +667,20 @@ ${line}"
 							esac
 
 						done <"$configurationFolderPath"/function.mapping
-
-						printf '%s\n' "$line" >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
+						
+						{
+							_bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles_makeAttributesSpaceSeparatedAndRemoveRedundantOnes "$functionName"
+							printf '%s\n' "$line"
+						} >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
 					;;
 					
 					$'\t''pub static '*)
 						
 						local field_pub
 						local field_static
-						local field_mutOtStaticName
+						local field_mutOrStaticName
 						local staticNameOrRemaining
-						IFS=$'\t'" (" read -r field_pub field_static field_mutOtStaticName staticNameOrRemaining <<-EOF
+						IFS=$'\t'" (" read -r field_pub field_static field_mutOrStaticName staticNameOrRemaining <<-EOF
 							${line}
 						EOF
 				
@@ -669,12 +710,19 @@ ${line}"
 							esac
 
 						done <"$configurationFolderPath"/static.mapping
-
-						printf '%s\n' "$line" >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
+						
+						{
+							_bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles_makeAttributesSpaceSeparatedAndRemoveRedundantOnes "$staticName"
+							printf '%s\n' "$line"
+						} >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
+					;;
+					
+					'}')
+						mode=next
 					;;
 					
 					*)
-						"Invalid line '${line}' in extern C block"
+						bindgen_wrapper_fail "Invalid line '${line}' in extern C block"
 					;;
 					
 				esac
@@ -686,7 +734,7 @@ ${line}"
 
 bindgen_wrapper_generateLibDotRs()
 {
-	_bindgen_wrapper_prepend()
+	_bindgen_wrapper_generateLibDotRs_prepend()
 	{
 		local fileToPrepend
 		for fileToPrepend in "$configurationFolderPath"/preamble.rs "$configurationFolderPath"/pre-includes.rs "$temporaryFolderPath"/includes.rs "$configurationFolderPath"/post-includes.rs
@@ -717,131 +765,92 @@ bindgen_wrapper_generateLibDotRs()
 				}
 			EOF
 		fi
+
+		printf '\n'
+	}
+	
+	_bindgen_wrapper_generateLibDotRs_sets()
+	{
+		local plural="$1"
+		local isExternC="$2"
+
+		if [ -f "$temporaryFolderPath"/"$plural"-sets ]; then
+			sort "$temporaryFolderPath"/"$plural"-sets >>"$outputFolderPath"/"$plural".rs
+			
+			printf 'include!("bindgen/%s.rs");\n' "$plural"
+			
+			rm -rf "$temporaryFolderPath"/"$plural"-sets
+		else
+			return 0
+		fi
+		
+		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/"$plural".rs
+		cd "$temporaryFolderPath"/"$plural" 1>/dev/null 2>/dev/null
+
+			set +f
+			local setFile
+			for setFile in *
+			do
+				set -f
+			
+				if [ ! -f "$setFile" ]; then
+					continue
+				fi
+
+				printf 'include!("bindgen/%s/%s.rs");\n' "$plural" "$setFile" >>"$temporaryFolderPath"/"$plural"-sets
+				
+				{
+					cat "$configurationFolderPath"/preamble.rs
+					if $isExternC; then
+						printf 'extern "C"\n{\n'
+					fi
+					sort "$setFile"
+					if $isExternC; then
+						printf '}\n'
+					fi
+				} >"$outputFolderPath"/"$plural"/"$setFile".rs
+			done
+			set -f
+	
+		cd - 1>/dev/null 2>/dev/null
+		
+		rm -rf "$temporaryFolderPath"/"$plural"
+	}
+	
+	_bindgen_wrapper_generateLibDotRs_nonSets()
+	{
+		local plural="$1"
+		
+		local temporaryFilePath="$temporaryFolderPath"/"$plural"
+		
+		if [ -f "$temporaryFilePath" ]; then
+			{
+				cat "$configurationFolderPath"/preamble.rs
+				sort "$temporaryFilePath"
+			} >"$outputFolderPath"/"$plural".rs
+			
+			printf 'include!("bindgen/%s.rs");\n' "$plural"
+			
+			rm -rf "$temporaryFilePath"
+		fi
 	}
 	
 	{
-		_bindgen_wrapper_prepend
+		_bindgen_wrapper_generateLibDotRs_prepend
+		
+		_bindgen_wrapper_generateLibDotRs_sets 'constants' false
+		
+		_bindgen_wrapper_generateLibDotRs_nonSets 'enums'
 
-		printf '\n'
+		_bindgen_wrapper_generateLibDotRs_sets 'functions' true
 
-		printf 'include!("bindgen/constants.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/constants.rs
-		cd "$temporaryFolderPath"/constants 1>/dev/null 2>/dev/null
-
-			set +f
-			local constantsSetFile
-			for constantsSetFile in *
-			do
-				set -f
-			
-				if [ ! -f "$constantsSetFile" ]; then
-					continue
-				fi
-
-				printf 'include!("bindgen/constants/%s.rs");\n' "$constantsSetFile" >>"$temporaryFolderPath"/constant-sets
-
-				{
-					cat "$configurationFolderPath"/preamble.rs
-					sort "$constantsSetFile"
-				} >"$outputFolderPath"/constants/"$constantsSetFile".rs
-			done
-			set -f
-	
-		cd - 1>/dev/null 2>/dev/null
-		if [ -f "$temporaryFolderPath"/constant-sets ]; then
-			sort "$temporaryFolderPath"/constant-sets >>"$outputFolderPath"/constants.rs
-		fi
-		rm -rf "$temporaryFolderPath"/constant-sets "$temporaryFolderPath"/constants
-	
-		if [ -f "$temporaryFolderPath"/types ]; then
-			printf 'include!("bindgen/types.rs");\n'
-			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/types.rs
-			sort "$temporaryFolderPath"/types >>"$outputFolderPath"/types.rs
-			rm -rf "$temporaryFolderPath"/types
-		fi
-	
-		if [ -f "$temporaryFolderPath"/enums ]; then
-			printf 'include!("bindgen/enums.rs");\n'
-			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/enums.rs
-			sort "$temporaryFolderPath"/enums >>"$outputFolderPath"/enums.rs
-			rm -rf "$temporaryFolderPath"/enums
-		fi
-	
-		if [ -f "$temporaryFolderPath"/structs ]; then
-			printf 'include!("bindgen/structs.rs");\n'
-			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/structs.rs
-			sort "$temporaryFolderPath"/structs >>"$outputFolderPath"/structs.rs
-			rm -rf "$temporaryFolderPath"/structs
-		fi
-	
-		if [ -f "$temporaryFolderPath"/unions ]; then
-			printf 'include!("bindgen/unions.rs");\n'
-			cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/unions.rs
-			sort "$temporaryFolderPath"/unions >>"$outputFolderPath"/unions.rs
-			rm -rf "$temporaryFolderPath"/unions
-		fi
-
-		printf 'include!("bindgen/statics.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/statics.rs
-		cd "$temporaryFolderPath"/statics 1>/dev/null 2>/dev/null
-
-			set +f
-			local staticsSetFile
-			for staticsSetFile in *
-			do
-				set -f
-			
-				if [ ! -f "$staticsSetFile" ]; then
-					continue
-				fi
-
-				printf 'include!("bindgen/statics/%s.rs");\n' "$staticsSetFile" >>"$temporaryFolderPath"/static-sets
-
-				{
-					cat "$configurationFolderPath"/preamble.rs
-					printf 'extern "C"\n{\n'
-					sort "$staticsSetFile"
-					printf '}\n'
-				} >"$outputFolderPath"/statics/"$staticsSetFile".rs
-			done
-			set -f
-
-		cd - 1>/dev/null 2>/dev/null
-		if [ -f "$temporaryFolderPath"/static-sets ]; then
-			sort "$temporaryFolderPath"/static-sets >>"$outputFolderPath"/statics.rs
-		fi
-		rm -rf "$temporaryFolderPath"/static-sets "$temporaryFolderPath"/statics
-
-		printf 'include!("bindgen/functions.rs");\n'
-		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/functions.rs
-		cd "$temporaryFolderPath"/functions 1>/dev/null 2>/dev/null
-
-			set +f
-			local functionsSetFile
-			for functionsSetFile in *
-			do
-				set -f
-			
-				if [ ! -f "$functionsSetFile" ]; then
-					continue
-				fi
-
-				printf 'include!("bindgen/functions/%s.rs");\n' "$functionsSetFile" >>"$temporaryFolderPath"/function-sets
-
-				{
-					cat "$configurationFolderPath"/preamble.rs
-					printf 'extern "C"\n{\n'
-					sort "$functionsSetFile"
-					printf '}\n'
-				} >"$outputFolderPath"/functions/"$functionsSetFile".rs
-			done
-			set -f
-
-		cd - 1>/dev/null 2>/dev/null
-		if [ -f "$temporaryFolderPath"/function-sets ]; then
-			sort "$temporaryFolderPath"/function-sets >>"$outputFolderPath"/functions.rs
-		fi
-		rm -rf "$temporaryFolderPath"/function-sets "$temporaryFolderPath"/functions
+		_bindgen_wrapper_generateLibDotRs_sets 'statics' true
+		
+		_bindgen_wrapper_generateLibDotRs_nonSets 'structs'
+		
+		_bindgen_wrapper_generateLibDotRs_nonSets 'types'
+		
+		_bindgen_wrapper_generateLibDotRs_nonSets 'unions'
 
 	} >"$outputFolderPath"/lib.rs
 }
@@ -902,6 +911,15 @@ bindgen_wrapper_extract_opaque_pointers_from_enums()
 	cd - 1>/dev/null 2>/dev/null
 }
 
+bindgen_wrapper_removeEmptyFolders()
+{
+	local folder
+	for folder in constants enums functions opaques statics structs types unions
+	do
+		rmdir "$outputFolderPath"/"$folder" 1>/dev/null 2>/dev/null || true
+	done
+}
+
 bindgen_wrapper_generate()
 {
 	local temporaryIncludeFolder="$_program_path"/temporary/includes
@@ -935,6 +953,8 @@ bindgen_wrapper_generate()
 	bindgen_wrapper_extract_opaque_pointers_from_enums
 	
 	final_chance_to_tweak
+	
+	bindgen_wrapper_removeEmptyFolders
 }
 
 bindgen_wrapper_execute()
