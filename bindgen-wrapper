@@ -248,7 +248,13 @@ bindgen_wrapper_installPrerequisites()
 bindgen_wrapper_installHeadersAndCopyOverrides()
 {
 	mkdir -m 0700 -p "$temporaryIncludeFolder"
-	rsync --quiet --archive "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
+
+	mkdir -m 0700 -p "$temporaryIncludeFolder"/header-overrides
+	printf '' >"$temporaryIncludeFolder"/header-overrides/.gitignore
+	
+	if [ -d "$configurationFolderPath"/header-overrides ]; then
+		rsync --quiet --archive "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
+	fi
 }
 
 bindgen_wrapper_createOutputFolder()
