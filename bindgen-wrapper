@@ -437,6 +437,7 @@ bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 		"$outputFolderPath"/statics \
 		"$outputFolderPath"/structs \
 		"$outputFolderPath"/types \
+		"$outputFolderPath"/uses \
 		"$outputFolderPath"/unions \
 		"$temporaryFolderPath"/constants \
 		"$temporaryFolderPath"/functions \
@@ -490,6 +491,19 @@ ${line}"
 						done <"$configurationFolderPath"/constant.mapping
 
 						printf '%s\n' "$line" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
+					;;
+					
+					# Process an use declaration
+					'pub use '*)
+						local withSemicolonSuffix="${line##* as }"
+						local name="${withSemicolonSuffix%*;}"
+
+						printf 'include!("bindgen/uses/%s");\n' "$name".rs >>"$temporaryFolderPath"/uses
+						namedFile="$outputFolderPath"/uses/"$name".rs
+						{
+							cat "$configurationFolderPath"/preamble.rs
+							printf '%s\n' "$line"
+						} >"$namedFile"
 					;;
 					
 					# Process single line type (due to rustfmt, all types are single line)
@@ -840,6 +854,8 @@ bindgen_wrapper_generateLibDotRs()
 		_bindgen_wrapper_generateLibDotRs_nonSets 'types'
 		
 		_bindgen_wrapper_generateLibDotRs_nonSets 'unions'
+		
+		_bindgen_wrapper_generateLibDotRs_nonSets 'uses'
 
 	} >"$outputFolderPath"/lib.rs
 }
@@ -903,7 +919,7 @@ bindgen_wrapper_extract_opaque_pointers_from_enums()
 bindgen_wrapper_removeEmptyFolders()
 {
 	local folder
-	for folder in constants enums functions opaques statics structs types unions
+	for folder in constants enums functions opaques statics structs types unions uses
 	do
 		rmdir "$outputFolderPath"/"$folder" 1>/dev/null 2>/dev/null || true
 	done
