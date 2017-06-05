@@ -253,7 +253,7 @@ bindgen_wrapper_installHeadersAndCopyOverrides()
 	printf '' >"$temporaryIncludeFolder"/header-overrides/.gitignore
 	
 	if [ -d "$configurationFolderPath"/header-overrides ]; then
-		rsync --quiet --archive "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
+		rsync --quiet --archive --copy-links "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
 	fi
 }
 
