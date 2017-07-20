@@ -498,7 +498,7 @@ ${line}"
 						local withSemicolonSuffix="${line##* as }"
 						local name="${withSemicolonSuffix%*;}"
 
-						printf 'include!("bindgen/uses/%s");\n' "$name".rs >>"$temporaryFolderPath"/uses
+						printf 'include!("uses/%s");\n' "$name".rs >>"$temporaryFolderPath"/uses
 						namedFile="$outputFolderPath"/uses/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -510,7 +510,7 @@ ${line}"
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
 						name="${stripPrefix% =*}"
-						printf 'include!("bindgen/types/%s");\n' "$name".rs >>"$temporaryFolderPath"/types
+						printf 'include!("types/%s");\n' "$name".rs >>"$temporaryFolderPath"/types
 						namedFile="$outputFolderPath"/types/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -521,7 +521,7 @@ ${line}"
 					# Process single line struct
 					'pub struct '*';')
 						name="$(printf "$line" | tr '<(' '  ' | awk '{print $3}')"
-						printf 'include!("bindgen/structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
+						printf 'include!("structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
 						namedFile="$outputFolderPath"/structs/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -534,7 +534,7 @@ ${line}"
 					# Process multi line enum
 					'pub enum '*)
 						name="${line#pub enum }"
-						printf 'include!("bindgen/enums/%s");\n' "$name".rs >>"$temporaryFolderPath"/enums
+						printf 'include!("enums/%s");\n' "$name".rs >>"$temporaryFolderPath"/enums
 						namedFile="$outputFolderPath"/enums/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -548,7 +548,7 @@ ${line}"
 					# Process multi line struct
 					'pub struct '*)
 						name="${line#pub struct }"
-						printf 'include!("bindgen/structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
+						printf 'include!("structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
 						namedFile="$outputFolderPath"/structs/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -562,7 +562,7 @@ ${line}"
 					# Process multi line union
 					'pub union '*)
 						name="${line#pub union }"
-						printf 'include!("bindgen/unions/%s");\n' "$name".rs >>"$temporaryFolderPath"/unions
+						printf 'include!("unions/%s");\n' "$name".rs >>"$temporaryFolderPath"/unions
 						namedFile="$outputFolderPath"/unions/"$name".rs
 						{
 							cat "$configurationFolderPath"/preamble.rs
@@ -790,7 +790,7 @@ bindgen_wrapper_generateLibDotRs()
 					continue
 				fi
 
-				printf 'include!("bindgen/%s/%s.rs");\n' "$plural" "$setFile" >>"$temporaryFolderPath"/"$plural"-sets
+				printf 'include!("%s/%s.rs");\n' "$plural" "$setFile" >>"$temporaryFolderPath"/"$plural"-sets
 				
 				{
 					cat "$configurationFolderPath"/preamble.rs
@@ -810,7 +810,7 @@ bindgen_wrapper_generateLibDotRs()
 		if [ -f "$temporaryFolderPath"/"$plural"-sets ]; then
 			sort "$temporaryFolderPath"/"$plural"-sets >>"$outputFolderPath"/"$plural".rs
 		
-			printf 'include!("bindgen/%s.rs");\n' "$plural"
+			printf 'include!("%s.rs");\n' "$plural"
 			
 			rm -rf "$temporaryFolderPath"/"$plural"-sets
 		else
@@ -832,7 +832,7 @@ bindgen_wrapper_generateLibDotRs()
 				sort "$temporaryFilePath"
 			} >"$outputFolderPath"/"$plural".rs
 			
-			printf 'include!("bindgen/%s.rs");\n' "$plural"
+			printf 'include!("%s.rs");\n' "$plural"
 			
 			rm -rf "$temporaryFilePath"
 		fi
@@ -903,15 +903,15 @@ bindgen_wrapper_extract_opaque_pointers_from_enums()
 			cat "$configurationFolderPath"/preamble.rs
 			grep '^#\[allow(missing_copy_implementations)\]' "$@" | awk -F. '{print $1}' | LC_ALL=C sort -u | while IFS= read -r opaqueStructName
 			do
-				sed -i -e 's;include!("bindgen/enums/'"$opaqueStructName"'.rs");DELETEME;g' -e '/DELETEME/d' "$outputFolderPath"/enums.rs
+				sed -i -e 's;include!("enums/'"$opaqueStructName"'.rs");DELETEME;g' -e '/DELETEME/d' "$outputFolderPath"/enums.rs
 			
-				printf 'include!("bindgen/opaques/%s.rs");\n' "$opaqueStructName"
+				printf 'include!("opaques/%s.rs");\n' "$opaqueStructName"
 			
 				mv "$outputFolderPath"/enums/"$opaqueStructName".rs "$outputFolderPath"/opaques
 			done
 		} >"$outputFolderPath"/opaques.rs
 
-		printf 'include!("bindgen/opaques.rs");\n' >>"$outputFolderPath"/lib.rs
+		printf 'include!("opaques.rs");\n' >>"$outputFolderPath"/lib.rs
 		
 	cd - 1>/dev/null 2>/dev/null
 }
@@ -1026,8 +1026,20 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	. "$configurationFolderPath"/configuration.sh
 
 	if [ -z "$headersFolderPath" ]; then
-		headersFolderPath="$prefix"/include/"$bindingsName"
+		headersFolderPath='usr/include'
 	fi
+	
+
+	if [ -z "${OUT_DIR+undefined}" ]; then
+		local compileTemporaryFolderPath="$configurationFolderPath"/temporary
+	else
+		local compileTemporaryFolderPath="$OUT_DIR"
+	fi
+	local installRootFolderPath="$compileTemporaryFolderPath"/root
+	
+	headersFolderPath="$installRootFolderPath"/"$headersFolderPath"
+
+	
 
 	$functionToExecute "$@"
 }
