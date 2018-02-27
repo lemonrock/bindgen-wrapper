@@ -13,8 +13,8 @@ As an example, check out [bearssl-sys] on GitHub.
 
 We try to automatically install these, but this is brittle at the moment. In the future, we may use a custom .cargo location.
 
-* bindgen 0.23.1
-* rustfmt 0.8.3
+* bindgen
+* rustfmt-nightly
 
 ## Installation
 

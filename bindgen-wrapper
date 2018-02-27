@@ -241,6 +241,7 @@ bindgen_wrapper_installPrerequisites()
 		$packageInstallFunction "$localPackageManagerPackage"
 	done
 
+	#bindgen_wrapper_cargoBinaryInstall rustfmt
 	bindgen_wrapper_cargoBinaryInstall bindgen
 }
 
@@ -347,7 +348,7 @@ bindgen_wrapper_generateIncludes()
 		done
 
 		grep '::libc::' "$inputFilePath" \
-			| sed -e 's/;/ /g' -e 's/$/ /g' -e 's/,/ /g' -e 's/>/ /g' -e 's/)/ /g' -e 's/\]/ /g' -e 's/\[/ /g' -e 's/^.* \(::libc::[a-zA-Z0-9_]*\) .*$/\1/g' \
+			| sed -e 's/;/ /g' -e 's/$/ /g' -e 's/,/ /g' -e 's/>/ /g' -e 's/)/ /g' -e 's/\]/ /g' -e 's/\[/ /g' -e 's/</ /g' -e 's/^.* \(::libc::[a-zA-Z0-9_]*\) .*$/\1/g' \
 			| sort -u \
 			| awk '{print "use " $1 ";"}'
 
