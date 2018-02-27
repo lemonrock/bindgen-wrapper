@@ -268,7 +268,10 @@ bindgen_wrapper_bindgen()
 	local outputFilePath="$2"
 
 	set -- \
-		--disable-name-namespacing --no-doc-comments --no-layout-tests --no-recursive-whitelist --objc-extern-crate --verbose \
+		--verbose \
+		--disable-name-namespacing --no-doc-comments --no-layout-tests --no-recursive-whitelist --objc-extern-crate \
+		--rustfmt-configuration-file "$_program_path"/rustfmt.toml \
+		--rust-target nightly \
 		--impl-debug --impl-partialeq \
 		--with-derive-default --with-derive-eq --with-derive-hash --with-derive-ord \
 		--ctypes-prefix ::libc --output "$outputFilePath"
@@ -395,14 +398,6 @@ bindgen_wrapper_cleanedGeneration()
 		-e 's/::std::slice:://g' \
 		-e 's/#\[inline\]//g' \
 		"$inputFilePath" >"$outputFilePath"
-}
-
-bindgen_wrapper_rustfmt()
-{
-	local inputFilePath="$1"
-	local outputFilePath="$2"
-
-	cat "$inputFilePath" | ~/.cargo/bin/rustfmt --config-path "$_program_path" >"$outputFilePath"
 }
 
 bindgen_wrapper_rustfmt_tidy()
@@ -957,9 +952,9 @@ bindgen_wrapper_generate()
 
 	postprocess_after_generation "$temporaryFolderPath"/cleanedGeneration.rs "$temporaryFolderPath"/afterGeneration.rs
 
-	bindgen_wrapper_rustfmt "$temporaryFolderPath"/afterGeneration.rs "$temporaryFolderPath"/rustfmt.rs
+	#bindgen_wrapper_rustfmt "$temporaryFolderPath"/afterGeneration.rs "$temporaryFolderPath"/rustfmt.rs
 
-	bindgen_wrapper_rustfmt_tidy "$temporaryFolderPath"/rustfmt.rs "$temporaryFolderPath"/rustfmt-tidy.rs
+	bindgen_wrapper_rustfmt_tidy "$temporaryFolderPath"/afterGeneration.rs "$temporaryFolderPath"/rustfmt-tidy.rs
 
 	bindgen_wrapper_remapConstantTypes "$temporaryFolderPath"/rustfmt-tidy.rs >"$temporaryFolderPath"/remapped-constant-types.rs
 
