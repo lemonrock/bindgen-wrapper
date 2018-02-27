@@ -241,7 +241,6 @@ bindgen_wrapper_installPrerequisites()
 		$packageInstallFunction "$localPackageManagerPackage"
 	done
 
-	bindgen_wrapper_cargoBinaryInstall rustfmt
 	bindgen_wrapper_cargoBinaryInstall bindgen
 }
 
@@ -251,7 +250,7 @@ bindgen_wrapper_installHeadersAndCopyOverrides()
 
 	mkdir -m 0700 -p "$temporaryIncludeFolder"/header-overrides
 	printf '' >"$temporaryIncludeFolder"/header-overrides/.gitignore
-	
+
 	if [ -d "$configurationFolderPath"/header-overrides ]; then
 		rsync --quiet --archive --copy-links "$configurationFolderPath"/header-overrides/ "$headersFolderPath"/ "$temporaryIncludeFolder"/
 	fi
@@ -266,7 +265,7 @@ bindgen_wrapper_bindgen()
 {
 	local inputFilePath="$1"
 	local outputFilePath="$2"
-	
+
 	set -- \
 		--disable-name-namespacing --no-doc-comments --no-layout-tests --no-recursive-whitelist --objc-extern-crate --use-core --verbose \
 		--with-derive-default --ctypes-prefix ::libc --output "$outputFilePath"
@@ -298,12 +297,12 @@ bindgen_wrapper_bindgen()
 			done <"$typeFilePath"
 		fi
 	done
-	
-	
+
+
 	set -- "$@" \
 		"$inputFilePath" \
 		-- -I"$temporaryIncludeFolder" $clangAdditionalArguments
-    
+
 	case "$platform" in
 
 		Darwin)
@@ -321,12 +320,12 @@ bindgen_wrapper_bindgen()
 bindgen_wrapper_generateIncludes()
 {
 	local inputFilePath="$1"
-	
+
 	{
 		if grep -q '::libc::' "$inputFilePath"; then
 			printf 'extern crate libc;\n\n\n'
 		fi
-		
+
 		local pattern
 		for pattern in \
 			'::core::clone::Clone' \
@@ -346,12 +345,12 @@ bindgen_wrapper_generateIncludes()
 				printf "use ${pattern};\n"
 			fi
 		done
-		
+
 		grep '::libc::' "$inputFilePath" \
 			| sed -e 's/;/ /g' -e 's/$/ /g' -e 's/,/ /g' -e 's/>/ /g' -e 's/)/ /g' -e 's/\]/ /g' -e 's/\[/ /g' -e 's/^.* \(::libc::[a-zA-Z0-9_]*\) .*$/\1/g' \
 			| sort -u \
 			| awk '{print "use " $1 ";"}'
-		
+
 	} >"$temporaryFolderPath"/includes.rs
 }
 
@@ -359,7 +358,7 @@ bindgen_wrapper_cleanedGeneration()
 {
 	local inputFilePath="$1"
 	local outputFilePath="$2"
-	
+
 	# Explanations
 	# Line 1: Remove comment
 	# Line 2: Remove any blank lines (so normalizing the file; we'll reinsert blank lines later)
@@ -385,7 +384,7 @@ bindgen_wrapper_rustfmt()
 {
 	local inputFilePath="$1"
 	local outputFilePath="$2"
-	
+
 	cat "$inputFilePath" | ~/.cargo/bin/rustfmt --config-path "$_program_path" >"$outputFilePath"
 }
 
@@ -393,7 +392,7 @@ bindgen_wrapper_rustfmt_tidy()
 {
 	local inputFilePath="$1"
 	local outputFilePath="$2"
-	
+
 	# sed line explanations-
 	# 1 - add newline before '{' in an extern block (rustfmt can't)
 	# 2 - add newline before '{' in an empty enum (rustfmt can't)
@@ -410,7 +409,7 @@ bindgen_wrapper_rustfmt_tidy()
 bindgen_wrapper_remapConstantTypes()
 {
 	local inputFilePath="$1"
-	
+
 	if [ ! -s "$configurationFolderPath"/constant.types ]; then
 		cat "$inputFilePath"
 		return 0
@@ -442,7 +441,7 @@ bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 		"$temporaryFolderPath"/constants \
 		"$temporaryFolderPath"/functions \
 		"$temporaryFolderPath"/statics
-	
+
 	local namedFile=''
 	local name=''
 	local attributes=''
@@ -454,7 +453,7 @@ bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 			next)
 
 				case "$line" in
-					
+
 					# Process Attribute
 					'#'*)
 						if [ -z "$attributes" ]; then
@@ -464,7 +463,7 @@ bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 ${line}"
 						fi
 					;;
-					
+
 					# Process single line constant (due to rustfmt, all constants are single line)
 					'pub const '*)
 						local stripPrefix="${line#pub const }"
@@ -492,7 +491,7 @@ ${line}"
 
 						printf '%s\n' "$line" >>"$temporaryFolderPath"/constants/"$chosenFileBaseName"
 					;;
-					
+
 					# Process an use declaration
 					'pub use '*)
 						local withSemicolonSuffix="${line##* as }"
@@ -505,7 +504,7 @@ ${line}"
 							printf '%s\n' "$line"
 						} >"$namedFile"
 					;;
-					
+
 					# Process single line type (due to rustfmt, all types are single line)
 					'pub type '*)
 						local stripPrefix="${line#pub type }"
@@ -530,7 +529,7 @@ ${line}"
 						} >"$namedFile"
 						attributes=''
 					;;
-					
+
 					# Process multi line enum
 					'pub enum '*)
 						name="${line#pub enum }"
@@ -572,7 +571,7 @@ ${line}"
 						attributes=''
 						mode=enumOrStructOrUnionExpectingOpenBrace
 					;;
-					
+
 					# Process enum, struct or union impl
 					'impl'*)
 						printf '\n%s\n' "$line" >>"$namedFile"
@@ -618,12 +617,12 @@ ${line}"
 			;;
 
 			externCExpectingReadUntilCloseBrace)
-				
+
 				# Strip leading space (sed expression assumes non-Mac OS X sed)
 				line="$(printf '%s' "$line" | sed -e 's/^[ \t]*//g')"
-				
+
 				case "$line" in
-					
+
 					# Attribute, either #[link_name = "XXXX"] or #[linkage = "XXX"]
 					'#'*)
 						if [ -z "$attributes" ]; then
@@ -632,9 +631,9 @@ ${line}"
 							attributes="${attributes} ${line}"
 						fi
 					;;
-					
+
 					'pub fn '*)
-						
+
 						local field_pub
 						local field_fn
 						local functionName
@@ -662,7 +661,7 @@ ${line}"
 							esac
 
 						done <"$configurationFolderPath"/function.mapping
-						
+
 						{
 							printf '\t'
 							if [ -n "$attributes" ]; then
@@ -672,9 +671,9 @@ ${line}"
 							attributes=''
 						} >>"$temporaryFolderPath"/functions/"$chosenFileBaseName"
 					;;
-					
+
 					'pub static '*)
-						
+
 						local field_pub
 						local field_static
 						local field_mutOrStaticName
@@ -682,14 +681,14 @@ ${line}"
 						IFS=$'\t'" (" read -r field_pub field_static field_mutOrStaticName staticNameOrRemaining <<-EOF
 							${line}
 						EOF
-				
+
 						local staticName
 						if [ "$field_mutOrStaticName" = 'mut' ]; then
 							staticName="$staticNameOrRemaining"
 						else
 							staticName="$field_mutOrStaticName"
 						fi
-						
+
 						local chosenFileBaseName='miscellany'
 						local prefix
 						local fileBaseName
@@ -698,7 +697,7 @@ ${line}"
 							if [ -z "$fileBaseName" ]; then
 								bindgen_wrapper_fail "static.mapping prefix '$prefix' has no fileBaseName"
 							fi
-							
+
 							case "$staticName" in
 
 								"$prefix"*)
@@ -709,7 +708,7 @@ ${line}"
 							esac
 
 						done <"$configurationFolderPath"/static.mapping
-						
+
 						{
 							printf '\t'
 							if [ -n "$attributes" ]; then
@@ -719,15 +718,15 @@ ${line}"
 							attributes=''
 						} >>"$temporaryFolderPath"/statics/"$chosenFileBaseName"
 					;;
-					
+
 					'}')
 						mode=next
 					;;
-					
+
 					*)
 						bindgen_wrapper_fail "Invalid line '${line}' in extern C block"
 					;;
-					
+
 				esac
 			;;
 
@@ -747,7 +746,7 @@ bindgen_wrapper_generateLibDotRs()
 				printf '\n'
 			fi
 		done
-	
+
 		local IFS=' '
 		local linkValue
 		local hasLinks=false
@@ -771,12 +770,12 @@ bindgen_wrapper_generateLibDotRs()
 
 		printf '\n'
 	}
-	
+
 	_bindgen_wrapper_generateLibDotRs_sets()
 	{
 		local plural="$1"
 		local isExternC="$2"
-				
+
 		cat "$configurationFolderPath"/preamble.rs >>"$outputFolderPath"/"$plural".rs
 		cd "$temporaryFolderPath"/"$plural" 1>/dev/null 2>/dev/null
 
@@ -785,13 +784,13 @@ bindgen_wrapper_generateLibDotRs()
 			for setFile in *
 			do
 				set -f
-			
+
 				if [ ! -f "$setFile" ]; then
 					continue
 				fi
 
 				printf 'include!("%s/%s.rs");\n' "$plural" "$setFile" >>"$temporaryFolderPath"/"$plural"-sets
-				
+
 				{
 					cat "$configurationFolderPath"/preamble.rs
 					if $isExternC; then
@@ -804,57 +803,57 @@ bindgen_wrapper_generateLibDotRs()
 				} >"$outputFolderPath"/"$plural"/"$setFile".rs
 			done
 			set -f
-	
+
 		cd - 1>/dev/null 2>/dev/null
-		
+
 		if [ -f "$temporaryFolderPath"/"$plural"-sets ]; then
 			sort "$temporaryFolderPath"/"$plural"-sets >>"$outputFolderPath"/"$plural".rs
-		
+
 			printf 'include!("%s.rs");\n' "$plural"
-			
+
 			rm -rf "$temporaryFolderPath"/"$plural"-sets
 		else
 			return 0
 		fi
-		
+
 		rm -rf "$temporaryFolderPath"/"$plural"
 	}
-	
+
 	_bindgen_wrapper_generateLibDotRs_nonSets()
 	{
 		local plural="$1"
-		
+
 		local temporaryFilePath="$temporaryFolderPath"/"$plural"
-		
+
 		if [ -f "$temporaryFilePath" ]; then
 			{
 				cat "$configurationFolderPath"/preamble.rs
 				sort "$temporaryFilePath"
 			} >"$outputFolderPath"/"$plural".rs
-			
+
 			printf 'include!("%s.rs");\n' "$plural"
-			
+
 			rm -rf "$temporaryFilePath"
 		fi
 	}
-	
+
 	{
 		_bindgen_wrapper_generateLibDotRs_prepend
-		
+
 		_bindgen_wrapper_generateLibDotRs_sets 'constants' false
-		
+
 		_bindgen_wrapper_generateLibDotRs_nonSets 'enums'
 
 		_bindgen_wrapper_generateLibDotRs_sets 'functions' true
 
 		_bindgen_wrapper_generateLibDotRs_sets 'statics' true
-		
+
 		_bindgen_wrapper_generateLibDotRs_nonSets 'structs'
-		
+
 		_bindgen_wrapper_generateLibDotRs_nonSets 'types'
-		
+
 		_bindgen_wrapper_generateLibDotRs_nonSets 'unions'
-		
+
 		_bindgen_wrapper_generateLibDotRs_nonSets 'uses'
 
 	} >"$outputFolderPath"/lib.rs
@@ -867,11 +866,11 @@ bindgen_wrapper_addInlineAnnotations()
 	for structFile in "$outputFolderPath"/structs/*.rs
 	do
 		set -f
-		
+
 		if [ ! -f "$structFile" ]; then
 			continue
 		fi
-		
+
 		sed -i \
 			-e 's/\tfn /\t#[inline(always)]\n\tfn /g' \
 			-e 's/\tpub fn /\t#[inline(always)]\n\tpub fn /g' \
@@ -885,34 +884,34 @@ bindgen_wrapper_extract_opaque_pointers_from_enums()
 {
 	local opaqueStructName
 	cd "$outputFolderPath"/enums 1>/dev/null 2>/dev/null
-		
+
 		set +f
 			set -- *.rs
 		set -f
-		
+
 		if [ $# -eq 1 ]; then
 			if [ "$1" = '*.rs' ]; then
 				cd - 1>/dev/null 2>/dev/null
 				return 0
 			fi
 		fi
-		
+
 		mkdir -m 0700 -p "$outputFolderPath"/opaques
-		
+
 		{
 			cat "$configurationFolderPath"/preamble.rs
 			grep '^#\[allow(missing_copy_implementations)\]' "$@" | awk -F. '{print $1}' | LC_ALL=C sort -u | while IFS= read -r opaqueStructName
 			do
 				sed -i -e 's;include!("enums/'"$opaqueStructName"'.rs");DELETEME;g' -e '/DELETEME/d' "$outputFolderPath"/enums.rs
-			
+
 				printf 'include!("opaques/%s.rs");\n' "$opaqueStructName"
-			
+
 				mv "$outputFolderPath"/enums/"$opaqueStructName".rs "$outputFolderPath"/opaques
 			done
 		} >"$outputFolderPath"/opaques.rs
 
 		printf 'include!("opaques.rs");\n' >>"$outputFolderPath"/lib.rs
-		
+
 	cd - 1>/dev/null 2>/dev/null
 }
 
@@ -934,42 +933,42 @@ bindgen_wrapper_generate()
 	bindgen_wrapper_createOutputFolder
 
 	bindgen_wrapper_bindgen "$temporaryIncludeFolder"/"$rootIncludeFileName" "$temporaryFolderPath"/rawGeneration.rs
-	
+
 	bindgen_wrapper_generateIncludes "$temporaryFolderPath"/rawGeneration.rs
-	
+
 	bindgen_wrapper_cleanedGeneration "$temporaryFolderPath"/rawGeneration.rs "$temporaryFolderPath"/cleanedGeneration.rs
 
 	postprocess_after_generation "$temporaryFolderPath"/cleanedGeneration.rs "$temporaryFolderPath"/afterGeneration.rs
 
 	bindgen_wrapper_rustfmt "$temporaryFolderPath"/afterGeneration.rs "$temporaryFolderPath"/rustfmt.rs
-	
+
 	bindgen_wrapper_rustfmt_tidy "$temporaryFolderPath"/rustfmt.rs "$temporaryFolderPath"/rustfmt-tidy.rs
-	
+
 	bindgen_wrapper_remapConstantTypes "$temporaryFolderPath"/rustfmt-tidy.rs >"$temporaryFolderPath"/remapped-constant-types.rs
 
 	postprocess_after_rustfmt "$temporaryFolderPath"/remapped-constant-types.rs "$temporaryFolderPath"/afterRustfmt.rs
-	
+
 	bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles
-	
+
 	bindgen_wrapper_generateLibDotRs
 
 	bindgen_wrapper_addInlineAnnotations
-	
+
 	bindgen_wrapper_extract_opaque_pointers_from_enums
-	
+
 	final_chance_to_tweak
-	
+
 	bindgen_wrapper_removeEmptyFolders
 }
 
 bindgen_wrapper_execute()
 {
 	export LC_ALL=en_US.UTF-8
-	
+
 	bindgen_wrapper_installPrerequisites
-	
+
 	preprocess_before_headersFolderPath
-	
+
 	bindgen_wrapper_generate
 }
 
@@ -991,7 +990,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	if [ ! -s "$configurationFilePath" ]; then
 		bindgen_wrapper_fail "Configuration file '$configurationFilePath' is not present, not readable or empty"
 	fi
-	
+
 	# Source configuration; set up defaults first
 	local bindingsName
 	local rootIncludeFileName
@@ -1009,14 +1008,14 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	{
 		local inputFilePath="$1"
 		local outputFilePath="$2"
-		
+
 		cat "$inputFilePath" >"$outputFilePath"
 	}
 	postprocess_after_rustfmt()
 	{
 		local inputFilePath="$1"
 		local outputFilePath="$2"
-		
+
 		cat "$inputFilePath" >"$outputFilePath"
 	}
 	final_chance_to_tweak()
@@ -1028,7 +1027,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	if [ -z "$headersFolderPath" ]; then
 		headersFolderPath='usr/include'
 	fi
-	
+
 
 	if [ -z "${OUT_DIR+undefined}" ]; then
 		local compileTemporaryFolderPath="$configurationFolderPath"/temporary
@@ -1036,10 +1035,10 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 		local compileTemporaryFolderPath="$OUT_DIR"
 	fi
 	local installRootFolderPath="$compileTemporaryFolderPath"/root
-	
+
 	headersFolderPath="$installRootFolderPath"/"$headersFolderPath"
 
-	
+
 
 	$functionToExecute "$@"
 }
