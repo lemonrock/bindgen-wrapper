@@ -277,7 +277,7 @@ bindgen_wrapper_bindgen()
 		--ctypes-prefix ::libc --output "$outputFilePath"
 
 	local regexOptionName
-	for regexOptionName in 'bitfield-enum' 'constified-enum' 'whitelist-function' 'whitelist-type' 'whitelist-var'
+	for regexOptionName in 'bitfield-enum' 'rustified-enum' 'whitelist-function' 'whitelist-type' 'whitelist-var'
 	do
 		local regexFilePath="$configurationFolderPath"/"$regexOptionName".regex
 		if [ -s "$regexFilePath" ]; then
@@ -303,7 +303,10 @@ bindgen_wrapper_bindgen()
 			done <"$typeFilePath"
 		fi
 	done
-
+	
+	if [ -n "$bindgenAdditionalArguments" ]; then
+		set -- "$@" $bindgenAdditionalArguments
+	fi
 
 	set -- "$@" \
 		"$inputFilePath" \
@@ -1011,6 +1014,7 @@ bindgen_wrapper_sourceConfigurationThenExecute()
 	local macosXHomebrewPackageNames
 	local alpineLinuxPackageNames
 	local headersFolderPath=''
+	local bindgenAdditionalArguments=''
 	local clangAdditionalArguments=''
 	preprocess_before_headersFolderPath()
 	{
