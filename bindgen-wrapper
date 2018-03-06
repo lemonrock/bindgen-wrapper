@@ -350,6 +350,10 @@ bindgen_wrapper_generateIncludes()
 			'ops::BitOrAssign' \
 			'ops::BitAnd' \
 			'ops::BitAndAssign' \
+			'hash::Hash' \
+			'hash::Hasher' \
+			'cmp::PartialEq' \
+			'cmp::Eq' \
 			'slice::from_raw_parts' \
 			'slice::from_raw_parts_mut'
 		do
@@ -399,6 +403,8 @@ bindgen_wrapper_cleanedGeneration()
 		-e 's/::core::option:://g' \
 		-e 's/::core::slice:://g' \
 		-e 's/::core::ops:://g' \
+		-e 's/::ops::hash:://g' \
+		-e 's/::ops::cmp:://g' \
 		-e 's/::std::clone:://g' \
 		-e 's/::std::default:://g' \
 		-e 's/::std::fmt:://g' \
@@ -407,6 +413,8 @@ bindgen_wrapper_cleanedGeneration()
 		-e 's/::std::option:://g' \
 		-e 's/::std::slice:://g' \
 		-e 's/::std::ops:://g' \
+		-e 's/::std::hash:://g' \
+		-e 's/::std::cmp:://g' \
 		-e 's/#\[inline\]//g' \
 		"$inputFilePath" >"$outputFilePath"
 }
@@ -466,6 +474,7 @@ bindgen_wrapper_splitMonolithicOutputFromBindgenAndRustfmtIntoSeparateFiles()
 		"$temporaryFolderPath"/statics
 
 	local namedFile=''
+	local implFile=''
 	local name=''
 	local attributes=''
 	local mode='next'
@@ -518,7 +527,7 @@ ${line}"
 					# Process an use declaration
 					'pub use '*)
 						local withSemicolonSuffix="${line##* as }"
-						local name="${withSemicolonSuffix%*;}"
+						name="${withSemicolonSuffix%*;}"
 
 						printf 'include!("uses/%s");\n' "$name".rs >>"$temporaryFolderPath"/uses
 						namedFile="$outputFolderPath"/uses/"$name".rs
@@ -597,14 +606,24 @@ ${line}"
 					
 					# Process enum, struct or union impl
 					'impl'*)
-						# For reasons best known to bindgen, it outputs bitfield operations (eg BitOr, BitOrAssign, BitAnd, BitAndAssign) BEFORE the struct definition.
+						name="${line##* }"
 						
-						# eg  `impl BitOrAssign for ucp_mem_attr_field`
+						# For names like `__BindgenUnionField<T>'`
+						name="${name%%<*}"
 						
+						if [ -e "$outputFolderPath"/enums/"$name".rs ]; then
+							implFile="$outputFolderPath"/enums/"$name".rs
+						elif [ -e "$outputFolderPath"/structs/"$name".rs ]; then
+							implFile="$outputFolderPath"/structs/"$name".rs
+						elif [ -e "$outputFolderPath"/unions/"$name".rs ]; then
+							implFile="$outputFolderPath"/unions/"$name".rs
+						else
+							# For reasons best known to bindgen, it outputs bitfield operation impls (eg BitOr, BitOrAssign, BitAnd, BitAndAssign) BEFORE the struct definition.
+							implFile="$temporaryFolderPath"/"$name".impl.rs
+						fi
 						
-						
-						printf '\n%s\n' "$line" >>"$namedFile"
-						mode=enumOrStructOrUnionExpectingOpenBrace
+						printf '\n%s\n' "$line" >>"$implFile"
+						mode=implExpectingOpenBrace
 					;;
 					
 					# Process pub fn, pub static or pub static mut
@@ -622,6 +641,21 @@ ${line}"
 
 				esac
 			;;
+			
+			implExpectingOpenBrace)
+				if [ "$line" != '{' ]; then
+					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+				fi
+				printf '%s\n' "$line" >>"$implFile"
+				mode=implReadUntilCloseBrace
+			;;
+			
+			implReadUntilCloseBrace)
+				if [ "$line" = '}' ]; then
+					mode=next
+				fi
+				printf '%s\n' "$line" >>"$implFile"
+			;;
 
 			enumOrStructOrUnionExpectingOpenBrace)
 				if [ "$line" != '{' ]; then
@@ -633,9 +667,11 @@ ${line}"
 
 			enumOrStructOrUnionReadUntilCloseBrace)
 				if [ "$line" = '}' ]; then
+					printf '%s\n' "$line" >>"$namedFile"
 					mode=next
+				else
+					printf '%s\n' "$line" >>"$namedFile"
 				fi
-				printf '%s\n' "$line" >>"$namedFile"
 			;;
 
 			externCExpectingOpenBrace)
@@ -761,6 +797,37 @@ ${line}"
 
 		esac
 	done <"$temporaryFolderPath"/afterRustfmt.rs
+	
+	# Assign impl files to enum, structs and unions
+	set +f
+	local implFile
+	for implFile in "$temporaryFolderPath"/*.impl.rs
+	do
+		set -f
+		
+		if [ ! -e "$implFile" ]; then
+			continue
+		fi
+		
+		local file_name="${implFile##*/}"
+		local name="${file_name%%.impl.rs}"
+		
+		local append_to_file
+		if [ -e "$outputFolderPath"/enums/"$name".rs ]; then
+			append_to_file="$outputFolderPath"/enums/"$name".rs
+		elif [ -e "$outputFolderPath"/structs/"$name".rs ]; then
+			append_to_file="$outputFolderPath"/structs/"$name".rs
+		elif [ -e "$outputFolderPath"/unions/"$name".rs ]; then
+			append_to_file="$outputFolderPath"/unions/"$name".rs
+		else
+			printf '%s\n' "WOAH: '$implFile'"
+			exit 99
+		fi
+		
+		cat "$implFile" >>"$append_to_file"
+		rm "$implFile"
+	done
+	set -f
 }
 
 bindgen_wrapper_generateLibDotRs()
