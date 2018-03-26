@@ -90,7 +90,7 @@ recreate_bindings_main()
 
 	#tools/bindgen-wrapper/build-under-cargo
 
-	tools/bindgen-wrapper/compile-on-mac-os-x-using-cargo build
+	tools/bindgen-wrapper/cargo-musl-wrapper build
 }
 
 recreate_bindings_main "$@"

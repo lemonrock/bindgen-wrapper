@@ -74,15 +74,15 @@ _program_path_find()
     fi
 }
 
-compile_on_mac_os_x_using_cargo_fail()
+cargo_musl_wrapper_fail()
 {
 	local message="$1"
 	
-	printf 'compile-on-mac-os-x-using-cargo:FAIL:%s\n' "$message" 1>&2
+	printf 'cargo-musl-wrapper:FAIL:%s\n' "$message" 1>&2
 	exit 1
 }
 
-compile_on_mac_os_x_using_cargo_ensureRequiredBinariesArePresent()
+cargo_musl_wrapper_ensureRequiredBinariesArePresent()
 {
 	local reason="$1"
 	shift 1
@@ -92,19 +92,19 @@ compile_on_mac_os_x_using_cargo_ensureRequiredBinariesArePresent()
 	for binary in "$@"
 	do
 		if ! command -v "$binary" 1>/dev/null 2>/dev/null; then
-			printf 'compile-on-mac-os-x-using-cargo:%s\n' "The binary '$binary' needs to be in the path" 1>&2
+			printf 'cargo-musl-wrapper:%s\n' "The binary '$binary' needs to be in the path" 1>&2
 			missing=true
 		fi
 	done
 
 	if $missing; then
-		compile_on_mac_os_x_using_cargo_fail "Please make sure that the missing binaries are installed because '$reason'"
+		cargo_musl_wrapper_fail "Please make sure that the missing binaries are installed because '$reason'"
 	fi
 }
 
-_compile_on_mac_os_x_using_cargo_prepareForMacOSX_brewInstall()
+_cargo_musl_wrapper_prepareForMacOSX_brewInstall()
 {
-	compile_on_mac_os_x_using_cargo_ensureRequiredBinariesArePresent brew
+	cargo_musl_wrapper_ensureRequiredBinariesArePresent brew
 		
 	local packageName="$1"
 	if ! brew ls --versions "$packageName" 1>/dev/null 2>/dev/null; then
@@ -112,13 +112,13 @@ _compile_on_mac_os_x_using_cargo_prepareForMacOSX_brewInstall()
 	fi
 }
 
-compile_on_mac_os_x_using_cargo_main()
+cargo_musl_wrapper_main()
 {
-	_compile_on_mac_os_x_using_cargo_prepareForMacOSX_brewInstall FiloSottile/musl-cross/musl-cross
+	_cargo_musl_wrapper_prepareForMacOSX_brewInstall FiloSottile/musl-cross/musl-cross
 	
 	cd "$(_program_path_find)"/../.. 1>/dev/null 2>/dev/null
 	
 	CROSS_COMPILE=x86_64-linux-musl- cargo "$@" --target x86_64-unknown-linux-musl
 }
 
-compile_on_mac_os_x_using_cargo_main "$@"
+cargo_musl_wrapper_main "$@"
