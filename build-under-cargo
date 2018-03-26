@@ -1,0 +1,304 @@
+#!/usr/bin/env sh
+# This file is part of bindgen-wrapper. It is subject to the license terms in the COPYRIGHT file found in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/bindgen-wrapper/master/COPYRIGHT. No part of bindgen-wrapper, including this file, may be copied, modified, propagated, or distributed except according to the terms contained in the COPYRIGHT file.
+# Copyright © 2016 The developers of bindgen-wrapper. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/bindgen-wrapper/master/COPYRIGHT.
+
+
+set -e
+set -u
+set -f
+
+
+_program_path_find()
+{
+    if [ "${_program_fattening_program_path+set}" = 'set' ]; then
+        printf '%s\n' "$_program_fattening_program_path"
+
+    elif [ "${0%/*}" = "$0" ]; then
+
+        # We've been invoked by the interpreter as, say, bash program
+        if [ -r "$0" ]; then
+            pwd -P
+        # Clutching at straws; probably run via a download, anonymous script, etc, weird execve, etc
+        else
+            printf '\n'
+        fi
+
+    else
+
+        # We've been invoked with a relative or absolute path (also when invoked via PATH in a shell)
+
+        _program_path_find_parentPath()
+        {
+            parentPath="${scriptPath%/*}"
+            if [ -z "$parentPath" ]; then
+                parentPath='/'
+            fi
+            cd "$parentPath" 1>/dev/null
+        }
+
+        # pdksh / mksh have problems with unsetting a variable that was never set...
+        if [ "${CDPATH+set}" = 'set' ]; then
+            unset CDPATH
+        fi
+
+        if command -v realpath 1>/dev/null 2>/dev/null; then
+            (
+                scriptPath="$(realpath "$0")"
+
+                _program_path_find_parentPath
+                pwd -P
+            )
+        elif command -v readlink 1>/dev/null 2>/dev/null; then
+            (
+                scriptPath="$0"
+
+                while [ -L "$scriptPath" ]
+                do
+                    _program_path_find_parentPath
+                    scriptPath="$(readlink "$scriptPath")"
+                done
+
+                _program_path_find_parentPath
+                pwd -P
+            )
+        else
+            # This approach will fail in corner cases where the script itself is a symlink in a path not parallel with the concrete script
+            (
+                scriptPath="$0"
+
+                _program_path_find_parentPath
+                pwd -P
+            )
+        fi
+
+    fi
+}
+
+build_under_cargo_fail()
+{
+	local message="$1"
+	
+	printf 'build-under-cargo:FAIL:%s\n' "$message" 1>&2
+	exit 1
+}
+
+_build_under_cargo_reRunIfChanged_print()
+{
+	local folderOrFilePath="$1"
+	printf 'cargo:rerun-if-changed=%s\n' "$folderOrFilePath"
+}
+
+_build_under_cargo_reRunIfChanged()
+{
+	local folderOrFilePath="$1"
+	
+	case "$folderOrFilePath" in
+		
+		*/temporary/*)
+			return 0
+		;;
+	
+	esac
+	
+	if [ -f "$folderOrFilePath" ]; then
+		_build_under_cargo_reRunIfChanged_print "$folderOrFilePath"
+	elif [ -d "$folderOrFilePath" ]; then
+		_build_under_cargo_reRunIfChanged_print "$folderOrFilePath"
+		
+		local child
+		set +f
+		for child in "$folderOrFilePath"/*
+		do
+			set -f
+			_build_under_cargo_reRunIfChanged "$child"
+		done
+		set f
+	fi
+}
+
+build_under_cargo_reRunIfAnyChanged()
+{
+	cd "$homeFolder" 1>/dev/null 2>/dev/null
+
+		local folderOrFilePath
+		for folderOrFilePath in "$@"
+		do
+			if [ -e "$folderOrFilePath" ]; then
+				_build_under_cargo_reRunIfChanged "$folderOrFilePath"
+			else
+				_build_under_cargo_reRunIfChanged_print "$folderOrFilePath"
+			fi
+		done
+		
+	cd - 1>/dev/null 2>/dev/null
+}
+
+build_under_cargo_sourceConfigurationFile()
+{
+	local configurationFilePath="$compileConfDFolderPath"/compile.configuration.sh
+	if [ ! -s "$configurationFilePath" ]; then
+		build_under_cargo_fail "Configuration file '$configurationFilePath' is not present, not readable or empty"
+	fi
+	. "$configurationFilePath"
+}
+
+build_under_cargo_compile()
+{
+	"$CARGO_MANIFEST_DIR"/tools/bindgen-wrapper/compile
+}
+
+build_under_cargo_generateRustBindings()
+{
+	"$CARGO_MANIFEST_DIR"/tools/bindgen-wrapper/bindgen-wrapper
+}
+
+build_under_cargo_outputCargoKeyValuePairs()
+{
+	_build_under_cargo_outputCargoKeyValuePairs_rerun_if_changed_recurse()
+	{
+		local relativeRoot="$1"
+
+		set +f
+		local file
+		for file in "$relativeRoot"/*
+		do
+			set -f
+
+			if [ ! -e "$file" ]; then
+				continue
+			fi
+
+			case "$file" in
+
+				"$relativeRoot"/.gitignore|"$relativeRoot"/temporary)
+					continue
+				;;
+
+			esac
+
+			if [ -L "$file" ]; then
+				printf 'cargo:rerun-if-changed=%s\n' "$file"
+			elif [ -f "$file" ]; then
+				printf 'cargo:rerun-if-changed=%s\n' "$file"
+			elif [ -d "$file" ]; then
+				printf 'cargo:rerun-if-changed=%s\n' "$file"
+				_build_under_cargo_outputCargoKeyValuePairs_rerun_if_changed_recurse "$file"
+			fi
+		done
+		set -f
+	}
+
+	cargo_key_value_pairs_rerun_if_changed()
+	{
+		local path="$1"
+
+		printf 'cargo:rerun-if-changed=%s\n' "$path"
+	}
+	
+	cargo_key_value_pairs_link_lib()
+	{
+		local kind="$1"
+		local lib="$2"
+
+		printf 'cargo:rustc-link-lib=%s=%s\n' "$kind" "$lib"
+	}
+	
+	cargo_key_value_pairs_search()
+	{
+		local kind="$1"
+		local path="$2"
+		
+		printf 'cargo:rustc-link-search=%s=%s\n' "$kind" "$path"
+	}
+	
+	cargo_key_value_pairs_other()
+	{
+		local key="$1"
+		local value="$2"
+		
+		printf 'cargo:%s=%s\n' "$key" "$value"
+	}
+
+
+	cd "$CARGO_MANIFEST_DIR" 1>/dev/null 2>/dev/null
+
+		_build_under_cargo_outputCargoKeyValuePairs_rerun_if_changed_recurse 'bindgen-wrapper.conf.d'
+		_build_under_cargo_outputCargoKeyValuePairs_rerun_if_changed_recurse 'compile.conf.d'
+		_build_under_cargo_outputCargoKeyValuePairs_rerun_if_changed_recurse lib
+
+	cd - 1>/dev/null 2>/dev/null
+	
+	cargo_key_value_pairs
+}
+
+build_under_cargo_steps()
+{
+	local compileConfDFolderPath="$CARGO_MANIFEST_DIR"/compile.conf.d
+
+	local compile_library_name
+	build_under_cargo_sourceConfigurationFile
+	
+	if [ ! -e "$OUT_DIR"/root/.compiled ]; then
+		build_under_cargo_compile
+	fi
+
+	if [ ! -e "$CARGO_MANIFEST_DIR"/src/bindgen/lib.rs ]; then
+		build_under_cargo_generateRustBindings
+	fi
+
+	build_under_cargo_outputCargoKeyValuePairs
+}
+
+build_under_cargo_main()
+{
+	case "$#" in
+
+		0)
+			:
+		;;
+
+		1)
+			case "$1" in
+
+				-h|--help)
+					printf './build\n'
+					printf './build -h|--help\n'
+					exit 0
+				;;
+
+				*)
+					build_under_cargo_fail "Does not take any arguments except --help"
+				;;
+
+			esac
+		;;
+
+		*)
+			build_under_cargo_fail "Does not take any arguments except --help"
+		;;
+
+	esac
+
+	local programPath="$(_program_path_find)"
+	cd "$programPath"/../.. 1>/dev/null 2>/dev/null
+		local homeFolder="$(pwd)"
+	cd - 1>/dev/null 2>/dev/null
+
+	if [ -z "${CARGO_MANIFEST_DIR+is_unset}" ]; then
+		export CARGO_MANIFEST_DIR="$homeFolder"
+		printf 'build-under-cargo:%s\n' "Whilst this script (build-under-cargo) is designed to be run under cargo, it can run independently. We're setting CARGO_MANIFEST_DIR to '$CARGO_MANIFEST_DIR'" 1>&2
+	else
+		:
+	fi
+
+	if [ -z "${OUT_DIR+is_unset}" ]; then
+		export OUT_DIR="$homeFolder"/bindgen-wrapper.conf.d/temporary
+		printf 'build-under-cargo:%s\n' "Whilst this script (build-under-cargo) is designed to be run under cargo, it can run independently. We're setting OUT_DIR to '$OUT_DIR'" 1>&2
+	else
+		:
+	fi
+
+	build_under_cargo_steps
+}
+
+build_under_cargo_main "$@"
