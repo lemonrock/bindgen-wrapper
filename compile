@@ -115,6 +115,7 @@ _compile_prepareForMacOSX_brewInstall()
 compile_prepareForMacOSX()
 {
 	_compile_prepareForMacOSX_brewInstall gnu-sed
+	_compile_prepareForMacOSX_brewInstall grep
 	_compile_prepareForMacOSX_brewInstall make
 	_compile_prepareForMacOSX_brewInstall libelf
 	_compile_prepareForMacOSX_brewInstall coreutils
@@ -136,8 +137,8 @@ compile_parseCommandLine()
 			case "$1" in
 
 				-h|--help)
-					printf './compile-rdma-core\n'
-					printf './compile-rdma-core -h|--help\n'
+					printf './compile\n'
+					printf './compile -h|--help\n'
 					printf 'Pass the environment variable NUM_JOBS to control the number of make jobs\n'
 					exit 0
 				;;
@@ -202,7 +203,6 @@ compile_platformSpecificPreparation()
 	else
 		numberOfMakeJobs="$NUM_JOBS"
 	fi
-
 	case "$platform" in
 
 		Darwin)
@@ -211,7 +211,14 @@ compile_platformSpecificPreparation()
 			compile_ensureRequiredBinariesArePresent brew
 
 			export PATH="$(brew --prefix coreutils)"/libexec/gnubin:"$(brew --prefix gnu-sed)"/libexec/gnubin:"$PATH"
-
+			
+			# Add g-prefixed binaries to the PATH
+			local binary
+			for binary in grep egrep fgrep
+			do
+				ln -s "$(brew --prefix coreutils)"/bin/g"${binary}" "$additionalPath"/"$binary"
+			done
+			
 			muslIncludeFolderPath="$(brew --prefix musl-cross)"/libexec/x86_64-linux-musl/include
 			targetSysRootFolderPath="$(brew --prefix musl-cross)"/libexec/"$configureHost"
 
