@@ -87,9 +87,7 @@ recreate_bindings_main()
 
 	cargo clean
 	rm -rf target ../target
-
-	tools/bindgen-wrapper/build-under-cargo
-
+	
 	tools/bindgen-wrapper/cargo-musl-wrapper build
 }
 

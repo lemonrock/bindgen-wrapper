@@ -263,9 +263,7 @@ compile_makeCopyToAlter()
 
 compile_patch()
 {
-	cd "$rootOutputFolderPath" 1>/dev/null 2>/dev/null
-		diff -r -U 3 . "$compileConfDFolderPath"/patches/ | LC_ALL=C grep -v '^Only in' | patch -p1 -d "$rootOutputFolderPath"
-	cd - 1>/dev/null 2>/dev/null
+	rsync --archive --quiet "$compileConfDFolderPath"/patches/ "$rootOutputFolderPath"/
 }
 
 compile_finish()
