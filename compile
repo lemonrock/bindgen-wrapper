@@ -216,7 +216,7 @@ compile_platformSpecificPreparation()
 			local binary
 			for binary in grep egrep fgrep
 			do
-				ln -s "$(brew --prefix coreutils)"/bin/g"${binary}" "$additionalPath"/"$binary"
+				ln -s "$(brew --prefix grep)"/bin/g"${binary}" "$additionalPath"/"$binary"
 			done
 			
 			muslIncludeFolderPath="$(brew --prefix musl-cross)"/libexec/x86_64-linux-musl/include
