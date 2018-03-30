@@ -114,7 +114,7 @@ _cargo_musl_wrapper_prepareForMacOSX_brewInstall()
 
 cargo_musl_wrapper_main()
 {
-	_cargo_musl_wrapper_prepareForMacOSX_brewInstall FiloSottile/musl-cross/musl-cross
+	_cargo_musl_wrapper_prepareForMacOSX_brewInstall lemonrock/musl-cross/musl-cross
 	
 	cd "$(_program_path_find)"/../.. 1>/dev/null 2>/dev/null
 	
