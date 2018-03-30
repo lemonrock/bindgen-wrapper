@@ -263,7 +263,9 @@ compile_makeCopyToAlter()
 
 compile_patch()
 {
-	rsync --archive --quiet "$compileConfDFolderPath"/patches/ "$rootOutputFolderPath"/
+	if [ -e "$compileConfDFolderPath"/patches ]; then
+		rsync --archive --quiet "$compileConfDFolderPath"/patches/ "$rootOutputFolderPath"/
+	fi
 }
 
 compile_finish()
