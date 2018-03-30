@@ -315,7 +315,7 @@ bindgen_wrapper_bindgen()
 	case "$platform" in
 
 		Darwin)
-			local prefix="$(brew --prefix musl-cross)"
+			local prefix="$(brew --prefix lemonrock/musl-cross/musl-cross)"
 			~/.cargo/bin/bindgen "$@" -U__BLOCKS__ --sysroot="$prefix"/does-not-exist -isystem"$prefix"/libexec/x86_64-linux-musl/include -D__linux__
 		;;
 

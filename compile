@@ -219,8 +219,8 @@ compile_platformSpecificPreparation()
 				ln -s "$(brew --prefix grep)"/bin/g"${binary}" "$additionalPath"/"$binary"
 			done
 			
-			muslIncludeFolderPath="$(brew --prefix musl-cross)"/libexec/x86_64-linux-musl/include
-			targetSysRootFolderPath="$(brew --prefix musl-cross)"/libexec/"$configureHost"
+			muslIncludeFolderPath="$(brew --prefix lemonrock/musl-cross/musl-cross)"/libexec/x86_64-linux-musl/include
+			targetSysRootFolderPath="$(brew --prefix lemonrock/musl-cross/musl-cross)"/libexec/"$configureHost"
 
 			if [ $numberOfMakeJobs -eq 0 ]; then
 				compile_ensureRequiredBinariesArePresent sysctl
