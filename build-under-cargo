@@ -228,13 +228,14 @@ build_under_cargo_outputCargoKeyValuePairs()
 		_build_under_cargo_outputCargoKeyValuePairs_rerun_if_changed_recurse tools/bindgen-wrapper
 
 	cd - 1>/dev/null 2>/dev/null
-	
+
 	cargo_key_value_pairs
 }
 
 build_under_cargo_steps()
 {
 	local compileConfDFolderPath="$CARGO_MANIFEST_DIR"/compile.conf.d
+	local rootOutputFolderPath="$OUT_DIR"/root
 
 	local compile_library_name
 	build_under_cargo_sourceConfigurationFile
