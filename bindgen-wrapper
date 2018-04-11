@@ -109,22 +109,24 @@ bindgen_wrapper_ensureRequiredBinariesArePresent()
 bindgen_wrapper_cargoBinaryInstall()
 {
 	local crate="$1"
-	shift 1
+	local version="$2"
 
-	if [ ! -x ~/.cargo/bin/"$crate" ]; then
+	local rootFolderPath=~/.bindgen-wrapper/"$crate"_"$version"
+	local binParentFolderPath="$rootFolderPath"/bin
+	if [ ! -x "$binParentFolderPath"/"$crate" ]; then
 		return 0
 	fi
 
-	bindgen_wrapper_ensureRequiredBinariesArePresent "To check for, and, if necessary, install the cargo binary '$crate'" cargo grep awk
+	bindgen_wrapper_ensureRequiredBinariesArePresent "To check for, and, if necessary, install the cargo binary '$crate'" cargo grep awk mkdir
 
-	if cargo install --list | grep -v '^ ' | awk '{ print $1 }' | grep -q '^'"$crate"'$'; then
-		return 0
-	fi
+	mkdir -m 0700 -p "$rootFolderPath"
 
-	cargo install "$@" "$crate"
+	cargo install --force --root "$rootFolderPath" --version "$version" "$crate"
+
+	export PATH="$binParentFolderPath":"$PATH"
 }
 
-_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=true
+_bindgen_wrapper_macosxHomebrewOrAlpineLinuxPackageManagerYetToBeUpdated=true
 
 bindgen_wrapper_macosxHomebrewInstall()
 {
@@ -138,10 +140,10 @@ bindgen_wrapper_macosxHomebrewInstall()
 		return 0
 	fi
 
-	if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
+	if $_bindgen_wrapper_macosxHomebrewOrAlpineLinuxPackageManagerYetToBeUpdated; then
 		brew update 1>&2
 		brew upgrade 1>&2
-		_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=false
+		_bindgen_wrapper_macosxHomebrewOrAlpineLinuxPackageManagerYetToBeUpdated=false
 	fi
 
 	brew install "$package" "$@" 1>&2
@@ -157,10 +159,10 @@ bindgen_wrapper_alpineLinuxInstall()
 	if ! apk info --installed "$package" 1>/dev/null 2>/dev/null; then
 		bindgen_wrapper_ensureRequiredBinariesArePresent "To check for and, if necessary, install the apk package '$package' as root" sudo
 
-		if $_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated; then
+		if $_bindgen_wrapper_macosxHomebrewOrAlpineLinuxPackageManagerYetToBeUpdated; then
 			sudo -p "Enter your password to call apk update before installing package '$package': " apk update
 			sudo -p "Enter your password to call apk upgrade before installing package '$package': "  apk upgrade
-			_bindgen_wrapper_macosxHomebrewOrAlipineLinuxPackageManagerYetToBeUpdated=false
+			_bindgen_wrapper_macosxHomebrewOrAlpineLinuxPackageManagerYetToBeUpdated=false
 		fi
 
 		sudo -p "Enter your password to call apk add to install package '$package' (you may need to enable edge and testing repositories in /etc/apk/repositories): " apk add "$package"
@@ -178,7 +180,6 @@ bindgen_wrapper_installPrerequisites()
 			bindgen_wrapper_macosxHomebrewInstall musl-cross
 			bindgen_wrapper_macosxHomebrewInstall gnu-sed
 			bindgen_wrapper_macosxHomebrewInstall coreutils
-			#bindgen_wrapper_macosxHomebrewInstall homebrew/versions/llvm38 --with-shared-libs --with-all-targets
 
 			packageInstallFunction=bindgen_wrapper_macosxHomebrewInstall
 			packagesToInstall="$macosXHomebrewPackageNames"
@@ -187,10 +188,6 @@ bindgen_wrapper_installPrerequisites()
 		;;
 
 		Linux)
-			if [ -d ~/.cargo/bin ]; then
-				export PATH=~/.cargo/bin:"$PATH"
-			fi
-
 			if bindgen_wrapper_isAlpineLinuxIfIsLinux; then
 
 				# Provides C library headers
@@ -241,8 +238,8 @@ bindgen_wrapper_installPrerequisites()
 		$packageInstallFunction "$localPackageManagerPackage"
 	done
 
-	#bindgen_wrapper_cargoBinaryInstall rustfmt-nightly
-	bindgen_wrapper_cargoBinaryInstall bindgen
+	bindgen_wrapper_cargoBinaryInstall rustfmt-nightly 0.3.8-nightly
+	bindgen_wrapper_cargoBinaryInstall bindgen 0.36.0
 }
 
 bindgen_wrapper_installHeadersAndCopyOverrides()
@@ -277,7 +274,7 @@ bindgen_wrapper_bindgen()
 		--ctypes-prefix ::libc --output "$outputFilePath"
 
 	local regexOptionName
-	for regexOptionName in 'bitfield-enum' 'rustified-enum' 'whitelist-function' 'whitelist-type' 'whitelist-var'
+	for regexOptionName in 'bitfield-enum' 'constified-enum-module' 'rustified-enum' 'whitelist-function' 'whitelist-type' 'whitelist-var'
 	do
 		local regexFilePath="$bindgenWrapperConfDFolderPath"/"$regexOptionName".regex
 		if [ -s "$regexFilePath" ]; then
@@ -316,11 +313,11 @@ bindgen_wrapper_bindgen()
 
 		Darwin)
 			local prefix="$(brew --prefix lemonrock/musl-cross/musl-cross)"
-			~/.cargo/bin/bindgen "$@" -U__BLOCKS__ --sysroot="$prefix"/does-not-exist -isystem"$prefix"/libexec/x86_64-linux-musl/include -D__linux__
+			bindgen "$@" -U__BLOCKS__ --sysroot="$prefix"/does-not-exist -isystem"$prefix"/libexec/x86_64-linux-musl/include -D__linux__
 		;;
 
 		*)
-			~/.cargo/bin/bindgen "$@" --sysroot="$prefix"/does-not-exist -isystem"$prefix"/MUSL-HEADERS-TODO -D__linux__
+			bindgen "$@" --sysroot="$prefix"/does-not-exist -isystem"$prefix"/MUSL-HEADERS-TODO -D__linux__
 		;;
 
 	esac
@@ -573,12 +570,12 @@ ${line}"
 							printf '%s\n' "$line"
 						} >"$namedFile"
 						attributes=''
-						mode=enumOrStructOrUnionExpectingOpenBrace
+						mode=enumOrStructOrUnionExpectingWhereOrOpenBrace
 					;;
 
 					# Process multi line struct
 					'pub struct '*)
-						name="${line#pub struct }"
+						name="$(printf "$line" | tr '<(' '  ' | awk '{print $3}')"
 						printf 'include!("structs/%s");\n' "$name".rs >>"$temporaryFolderPath"/structs
 						namedFile="$outputFolderPath"/structs/"$name".rs
 						{
@@ -587,7 +584,7 @@ ${line}"
 							printf '%s\n' "$line"
 						} >"$namedFile"
 						attributes=''
-						mode=enumOrStructOrUnionExpectingOpenBrace
+						mode=enumOrStructOrUnionExpectingWhereOrOpenBrace
 					;;
 
 					# Process multi line union
@@ -601,12 +598,15 @@ ${line}"
 							printf '%s\n' "$line"
 						} >"$namedFile"
 						attributes=''
-						mode=enumOrStructOrUnionExpectingOpenBrace
+						mode=enumOrStructOrUnionExpectingWhereOrOpenBrace
 					;;
 
 					# Process enum, struct or union impl
 					'impl'*)
-						name="${line##* }"
+						# For lines like 'impl<Storage, Align> __BindgenBitfieldUnit<Storage, Align>'
+						name="$(printf '%s' "$line" | sed -e 's/, //g')"
+
+						name="${name##* }"
 
 						# For names like `__BindgenUnionField<T>'`
 						name="${name%%<*}"
@@ -623,7 +623,7 @@ ${line}"
 						fi
 
 						printf '\n%s\n' "$line" >>"$implFile"
-						mode=implExpectingOpenBrace
+						mode=implExpectingWhereOrOpenBrace
 					;;
 
 					# Process pub fn, pub static or pub static mut
@@ -642,6 +642,26 @@ ${line}"
 				esac
 			;;
 
+			implExpectingWhereOrOpenBrace)
+				case "$line" in
+
+					'where '*)
+						mode=implExpectingOpenBrace
+					;;
+
+					'{')
+						mode=implReadUntilCloseBrace
+					;;
+
+					*)
+						bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+					;;
+
+				esac
+				printf '%s\n' "$line" >>"$implFile"
+				mode=implReadUntilCloseBrace
+			;;
+
 			implExpectingOpenBrace)
 				if [ "$line" != '{' ]; then
 					bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
@@ -655,6 +675,26 @@ ${line}"
 					mode=next
 				fi
 				printf '%s\n' "$line" >>"$implFile"
+			;;
+
+			enumOrStructOrUnionExpectingWhereOrOpenBrace)
+				case "$line" in
+
+					'where '*)
+						mode=enumOrStructOrUnionExpectingOpenBrace
+					;;
+
+					'{')
+						mode=enumOrStructOrUnionReadUntilCloseBrace
+					;;
+
+					*)
+						bindgen_wrapper_fail "Did not expect line '$line' when in mode '$mode'"
+					;;
+
+				esac
+				printf '%s\n' "$line" >>"$namedFile"
+				mode=enumOrStructOrUnionReadUntilCloseBrace
 			;;
 
 			enumOrStructOrUnionExpectingOpenBrace)
@@ -1150,7 +1190,7 @@ bindgen_wrapper_main()
 	local temporaryFolderPath="$OUT_DIR"/bindgen-wrapper-temporary
 	local temporaryIncludeFolder="$temporaryFolderPath"/includes
 	local rootOutputFolderPath="$OUT_DIR"/root
-	
+
 	rm -rf "$temporaryFolderPath"
 	mkdir -m 0750 -p "$temporaryFolderPath"
 
